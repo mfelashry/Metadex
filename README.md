@@ -64,29 +64,6 @@ For a Vultr GPU host, follow [docs/vultr-gpu.md](docs/vultr-gpu.md). Folder scan
   <img alt="Gemini" src="https://img.shields.io/badge/Gemini-8E75B2?logo=googlegemini&logoColor=white">
 </p>
 
-## Contributors
 
-<table align="center">
-  <tr>
-    <td align="center">
-      <a href="https://www.linkedin.com/in/melashry/">
-        <img src="docs/me.png" width="96" height="96" alt="Mohamed Elashry">
-      </a>
-      <br>
-      <a href="https://www.linkedin.com/in/melashry/"><strong>Mohamed Elashry</strong></a>
-      <br>
-      Frontend
-    </td>
-    <td align="center">
-      <a href="https://www.linkedin.com/in/hamzaelashry/">
-        <img src="docs/he.png" width="96" height="96" alt="Hamza Elashry">
-      </a>
-      <br>
-      <a href="https://www.linkedin.com/in/hamzaelashry/"><strong>Hamza Elashry</strong></a>
-      <br>
-      Python and backend
-    </td>
-  </tr>
-</table>
 
 <p align="center">Metadex. Look closer.</p>
