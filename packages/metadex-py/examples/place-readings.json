@@ -1,0 +1,26 @@
+[
+  {
+    "timestamp": "2026-10-17T14:04:05Z",
+    "sensor_type": "cpu_temperature",
+    "value": 91,
+    "unit": "celsius"
+  },
+  {
+    "timestamp": "2026-10-17T14:04:05Z",
+    "sensor_type": "accelerometer",
+    "value": 34,
+    "unit": "m/s^2"
+  },
+  {
+    "timestamp": "2026-10-17T14:04:06Z",
+    "sensor_type": "light",
+    "value": 1,
+    "unit": "lux"
+  },
+  {
+    "timestamp": "2026-10-17T14:04:06Z",
+    "sensor_type": "proximity",
+    "value": 0,
+    "unit": "cm"
+  }
+]

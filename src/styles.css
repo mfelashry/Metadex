@@ -89,18 +89,6 @@ a {
 .site-nav .brand {
   align-self: center;
 }
-.brand-mark {
-  display: block;
-  flex: none;
-  width: auto;
-  height: 1.2em;
-  margin: 0 0.04em 0 0;
-  object-fit: contain;
-  transform: translateY(-0.04em);
-}
-.app-shell[data-theme="dark"] .brand-mark {
-  filter: invert(1);
-}
 .brand > span {
   margin-left: 0;
 }
@@ -1922,50 +1910,6 @@ footer button {
   transform: none;
   object-fit: cover;
 }
-.file-data-toggle {
-  position: absolute;
-  z-index: 4;
-  left: 50%;
-  bottom: 7%;
-  translate: -50% 0;
-  padding: 6px 12px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--bg) 88%, transparent);
-  color: var(--fg);
-  font: inherit;
-  font-size: 13px;
-}
-.file-data-toggle[aria-pressed="true"] {
-  background: var(--fg);
-  color: var(--bg);
-}
-.file-data-list {
-  position: absolute;
-  z-index: 4;
-  top: 14%;
-  right: 6%;
-  width: 168px;
-  margin: 0;
-  padding: 10px 12px;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--bg) 92%, transparent);
-  list-style: none;
-}
-.file-data-list li {
-  display: grid;
-  gap: 1px;
-  padding: 4px 0;
-}
-.file-data-list span {
-  color: var(--muted);
-  font-size: 11px;
-}
-.file-data-list strong {
-  font-size: 12px;
-  font-weight: 600;
-}
 .stage-checks,
 .stage-docs,
 .stage-upload {
@@ -1982,7 +1926,7 @@ footer button {
 .stage-docs h2,
 .stage-docs > p,
 .stage-docs .copy-block {
-  width: min(640px, 100%);
+  width: min(760px, 100%);
 }
 .stage-docs h2 {
   margin: 0 0 8px;
@@ -3031,8 +2975,9 @@ footer button {
 }
 .copy-block button {
   position: absolute;
-  top: 8px;
-  right: 8px;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
   display: grid;
   place-items: center;
   width: 30px;
@@ -3085,12 +3030,15 @@ footer button {
 }
 .docs-block pre {
   margin: 12px 0 0;
-  padding: 14px 16px;
-  overflow: auto;
+  padding: 16px 48px 16px 18px;
+  overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 12px;
-  font-size: 14px;
-  line-height: 1.55;
+  font-size: 13px;
+  line-height: 1.6;
+  text-align: left;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 .docs-block p {
   max-width: 62ch;
@@ -3875,9 +3823,20 @@ html[data-nav="back"]::view-transition-new(root) {
 
 /* Compact report: the list is grouped and the selected image gets the space. */
 .scanner-report { gap: 8px; animation: scanner-report-enter .5s cubic-bezier(.18,1,.32,1) both; }
+.scanner-headline-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
 .scanner-headline { font-family: "Fredoka", ui-rounded, system-ui, sans-serif; font-size: clamp(27px, 3.6vw, 39px); font-weight: 600; line-height: 1.15; }
+.download-json { flex: none; margin-top: 6px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 99px; background: var(--bg); color: var(--fg); font: inherit; font-size: 13px; cursor: pointer; }
+.download-json:hover { background: var(--soft); }
 .scanner-meta { margin: 0 0 25px; font-size: 13px; }
-.scanner-split { grid-template-columns: minmax(220px, 300px) minmax(0, 1fr); gap: clamp(20px, 3vw, 44px); }
+.scanner-split { grid-template-columns: minmax(200px, 260px) minmax(0, 1fr) minmax(220px, 300px); gap: clamp(16px, 2vw, 28px); }
+.ai-panel p { margin: 0; font-size: 14px; line-height: 1.55; }
+.summary-caret { display: inline-block; width: 7px; height: 1em; margin-left: 2px; background: var(--fg); vertical-align: text-bottom; }
+.ask-box { display: grid; gap: 8px; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line); }
+.ask-box input { width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--fg); font: inherit; }
+.ask-box button { justify-self: start; padding: 7px 12px; border: 0; border-radius: 99px; background: var(--fg); color: var(--bg); font: inherit; font-size: 13px; cursor: pointer; }
+.scanner-facts { margin: 8px 0 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.scanner-facts li { display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 8px; font-size: 14px; }
+.scanner-facts span { color: var(--muted); }
 .scanner-groups { display: grid; align-content: start; gap: 12px; position: sticky; top: 80px; max-height: calc(100svh - 100px); overflow: auto; }
 .scanner-group { border: 1px solid var(--line); border-radius: 18px; overflow: hidden; background: var(--bg); }
 .scanner-group-toggle { display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 16px 18px; border: 0; background: none; color: var(--fg); font: inherit; font-weight: 600; text-align: left; cursor: pointer; }
@@ -3902,9 +3861,24 @@ html[data-nav="back"]::view-transition-new(root) {
 .scanner-finding, .scanner-messages, .scanner-gemini { margin-top: 28px; }
 .scanner-detail h2 { margin: 0 0 10px; font-size: 17px; font-weight: 600; }
 .scanner-finding p { margin: 0; font-size: 16px; line-height: 1.55; }
-.scanner-messages blockquote { margin: 10px 0; padding: 14px 18px; border: 1px solid var(--line); border-left: 3px solid var(--fg); border-radius: 10px; background: var(--soft); }
-.scanner-messages blockquote p { margin: 0; font-size: 16px; line-height: 1.5; overflow-wrap: anywhere; }
-.scanner-messages blockquote footer { margin-top: 8px; color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
+.scanner-messages blockquote { margin: 10px 0; padding: 14px 18px; border: 1px solid var(--line); border-left: 3px solid var(--fg); border-radius: 10px; background: var(--soft); text-align: left; }
+.scanner-messages blockquote p { margin: 8px 0 0; font-size: 16px; line-height: 1.5; overflow-wrap: anywhere; }
+.recovered-label { margin: 0; color: var(--fg); font-size: 13px; font-weight: 650; letter-spacing: 0.01em; }
+.ask-chat { display: grid; gap: 10px; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line); }
+.chat-title { display: flex; align-items: center; gap: 6px; }
+.gemini-mark { width: 14px; height: 14px; flex: none; }
+.ask-reply .gemini-mark { display: inline-block; margin-right: 6px; vertical-align: -2px; }
+.ask-log { display: flex; flex-direction: column; gap: 8px; overflow: visible; }
+.ask-typing span { color: var(--muted); }
+.ask-user, .ask-reply { max-width: 88%; margin: 0; padding: 8px 10px; border-radius: 12px; font-size: 14px; line-height: 1.45; animation: ask-in .28s ease both; }
+@keyframes ask-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .ask-user, .ask-reply { animation: none; } }
+.ask-user { align-self: flex-end; background: var(--fg); color: var(--bg); }
+.ask-reply { align-self: flex-start; border: 1px solid var(--line); background: var(--soft); }
+.ask-chat form { display: flex; gap: 8px; align-items: center; }
+.ask-chat input { flex: 1; min-width: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--fg); font: inherit; }
+.ask-chat button { flex: none; padding: 8px 12px; border: 0; border-radius: 99px; background: var(--fg); color: var(--bg); font: inherit; font-size: 13px; cursor: pointer; }
+.ask-chat button:disabled { opacity: 0.5; }
 .scanner-gemini { padding: 18px; border: 1px solid var(--line); border-radius: 16px; }
 .scanner-gemini > div { display: flex; align-items: center; gap: 8px; }
 .scanner-gemini h2 { margin: 0; }
@@ -3918,11 +3892,15 @@ html[data-nav="back"]::view-transition-new(root) {
 .scanner-about { margin-top: 30px; }
 @keyframes scanner-report-enter { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes scanner-item-enter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@media (max-width: 980px) { .scanner-split { grid-template-columns: minmax(200px, 280px) minmax(0, 1fr); } .ai-panel { position: static; } }
 @media (max-width: 750px) { .scanner-split { grid-template-columns: 1fr; } .scanner-groups { position: static; max-height: none; } .scanner-list { max-height: 350px; } }
 @media (prefers-reduced-motion: reduce) { .scanner-report, .scanner-list button { animation: none; } .scanner-group-toggle svg { transition: none; } }
 .stage-docs { overflow: auto; }
 .stage-docs .download-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; width: min(640px, 100%); margin: 15px 0 2px; }
 .download-options a { display: flex; flex-direction: column; gap: 4px; min-height: 76px; padding: 13px; border: 1px solid var(--line); border-radius: 13px; color: var(--fg); font-size: 13px; font-weight: 600; line-height: 1.25; text-decoration: none; }
+.download-mark { width: 36px; height: 36px; margin-bottom: 4px; }
+.terminal-examples { display: grid; gap: 8px; width: min(760px, 100%); margin-top: 14px; text-align: left; }
+.terminal-examples > p { margin: 8px 0 0; color: var(--muted); font-size: 12px; font-weight: 600; }
 .download-options a:hover { border-color: var(--fg); background: var(--soft); }
 .download-options span { color: var(--muted); font-size: 10px; font-weight: 400; }
 .stage-docs code { color: var(--fg); font-size: .92em; }

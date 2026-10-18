@@ -7,6 +7,7 @@ export type HiddenMessage = {
   where?: string;
   encoding?: string;
   text?: string;
+  original?: string;
   also_in?: string[];
 };
 
@@ -70,6 +71,7 @@ export type MetaField = {
   preview?: string;
   decoded?: string | null;
   flagged?: boolean;
+  encoding?: string;
 };
 
 export type Panel = { status?: string; headline?: string; statement?: string };

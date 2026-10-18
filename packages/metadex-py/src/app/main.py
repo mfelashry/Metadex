@@ -58,6 +58,7 @@ class ScanFolder(BaseModel):
 class ExplainFinding(BaseModel):
     level: str = Field(..., max_length=30)
     reasons: list[str] = Field(default_factory=list, max_length=5)
+    sensor_notes: list[str] = Field(default_factory=list, max_length=5)
 
 
 def _run(data: bytes, filename: str | None, events, sensors) -> dict:
@@ -83,7 +84,7 @@ def health():
 async def explain_finding(body: ExplainFinding):
     """Explain finding labels on demand without uploading images or recovered text."""
     try:
-        text = await run_in_threadpool(explain, body.level, body.reasons)
+        text = await run_in_threadpool(explain, body.level, body.reasons, body.sensor_notes)
     except GeminiError as exc:
         raise HTTPException(status_code=503, detail={"message": str(exc)}) from exc
     return {"text": text}

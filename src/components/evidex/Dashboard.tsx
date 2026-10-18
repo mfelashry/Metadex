@@ -6,7 +6,6 @@ import {
   MAX_IMAGE_BYTES,
   sniffImage,
 } from "@/components/evidex/analyzeImage";
-import { BrandMark } from "@/components/evidex/BrandMark";
 import {
   cleanCase,
   reportFromAnalysis,
@@ -269,8 +268,7 @@ export function Dashboard() {
     <div className="app-shell" data-theme={theme}>
       <header className="site-nav">
         <a href="#top" className="brand" aria-label="Metadex">
-          <BrandMark />
-          <span>ETADEX</span>
+          METADEX
         </a>
         <div className="nav-controls">
           <button
@@ -466,8 +464,7 @@ function Reveal({
     >
       <div className="reveal-bar">
         <span className="brand" aria-label="Metadex">
-          <BrandMark />
-          <span>ETADEX</span>
+          METADEX
         </span>
         <span>
           {stage.position} of {stage.total}

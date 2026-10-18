@@ -35,7 +35,7 @@ LIMITATIONS = (
     "Encrypted payloads and unknown steganography stay unread. A clear result does not mean the file is clean. "
     "Activity correlation requires events the analyst supplies and can only link filename, host, process, and time. "
     "It cannot identify a sender or prove the image caused a connection. "
-    "Sensor thresholds are demonstration values for device health, not intrusion detections."
+    "Sensor thresholds are demonstration values for the safety of a person or a place (heat, a hard jolt, a fast spin, darkness, or something against the device). They are not intrusion detections."
 )
 
 
@@ -117,7 +117,7 @@ def analyze_bytes(data: bytes, filename: str | None, events, sensors) -> dict:
         "device_health": {
             "status": device["status"],
             "headline": device["headline"],
-            "statement": "Observed device condition. Not an attack verdict.",
+            "statement": "A safety note for the person holding the device or the place around it. Not an attack verdict.",
         },
     }
     fileinfo = {
@@ -430,15 +430,16 @@ def _rules(structure, meta, appended, lsb, recovered, activity, device, messages
         activity["status"]
     ]
     rules.append(_rule("SF-ACT-001", "Arrival, read, outbound", "activity", activity_result, activity["explanation"]))
-    temp = any(item["condition"] == "Elevated temperature" for item in device["observations"])
-    motion = any(item["condition"] == "Large acceleration" for item in device["observations"])
-    if device["status"] == "not_assessed":
-        temp_result = motion_result = "not_assessed"
-    else:
-        temp_result = "observed" if temp else "clear"
-        motion_result = "observed" if motion else "clear"
-    rules.append(_rule("SF-DEV-001", "CPU or battery temperature", "device", temp_result, "Demonstration threshold 85 °C. Device condition only."))
-    rules.append(_rule("SF-DEV-002", "Accelerometer", "device", motion_result, "Demonstration threshold magnitude 30. Device condition only."))
+    def device_result(condition: str) -> str:
+        if device["status"] == "not_assessed":
+            return "not_assessed"
+        return "observed" if any(item["condition"] == condition for item in device["observations"]) else "clear"
+
+    rules.append(_rule("SF-DEV-001", "CPU or battery temperature", "device", device_result("Elevated temperature"), "Demonstration threshold 85 °C. Safety note only."))
+    rules.append(_rule("SF-DEV-002", "Accelerometer", "device", device_result("Large acceleration"), "Demonstration threshold magnitude 30. Safety note only."))
+    rules.append(_rule("SF-DEV-003", "Gyroscope", "device", device_result("Fast rotation"), "Demonstration threshold magnitude 8. Safety note only."))
+    rules.append(_rule("SF-DEV-004", "Light", "device", device_result("Very little light"), "Demonstration threshold 5 lux. Place note only."))
+    rules.append(_rule("SF-DEV-005", "Proximity", "device", device_result("Something is against the device"), "Demonstration threshold 1 cm. Place note only."))
     rules.append(
         _rule(
             "SF-STRAIN-001",

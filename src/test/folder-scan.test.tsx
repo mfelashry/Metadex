@@ -26,7 +26,7 @@ describe("Folder scan loading states", () => {
 
   it("only marks completion after receiving a completed count", () => {
     const { rerender } = render(<FolderScan {...defaults} />);
-    rerender(<FolderScan {...defaults} count={{ done: 24, total: 24 }} />);
+    rerender(<FolderScan {...defaults} count={{ done: 24, total: 24 }} settled />);
     expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "100");
     expect(screen.getByRole("status")).toHaveTextContent("Analysis complete");
   });

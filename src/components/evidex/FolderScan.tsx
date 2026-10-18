@@ -13,32 +13,54 @@ const samples = ["mountains", "coast", "architecture", "desert"].map((name) => (
 }));
 const lensX = [340, 378, 312, 340];
 const lensY = [128, 148, 164, 128];
-const loop = { duration: 2.3, ease: "easeInOut" as const, repeat: Infinity };
+const PHOTO_MS = 2000;
+const loop = { duration: PHOTO_MS / 1000, ease: "easeInOut" as const, repeat: Infinity };
 
 export function FolderScan({
   cards,
   label,
   count,
+  settled = false,
 }: {
   cards: DeckCard[] | null;
   label: string;
   count: { done: number; total: number } | null;
+  settled?: boolean;
 }) {
   const reduced = useReducedMotion();
   const id = useId().replace(/:/g, "");
   const dialog = useRef<HTMLDivElement>(null);
   const [cursor, setCursor] = useState(0);
+  const [shown, setShown] = useState(0);
   const list = cards?.length ? cards : samples;
   const total = count?.total ?? 0;
-  const complete = count !== null && total > 0 && count.done >= total;
+  const target = count?.done ?? 0;
+  const scanDone = count !== null && total > 0 && target >= total;
+  const displayed = settled || reduced ? target : shown;
+  const complete = settled && scanDone && displayed >= total;
   const current = list[cursor % list.length]!;
   const previewNumber = (cursor % list.length) + 1;
 
   useEffect(() => {
     if (reduced || complete) return;
-    const timer = window.setInterval(() => setCursor((value) => value + 1), 2300);
+    const timer = window.setInterval(() => setCursor((value) => value + 1), PHOTO_MS);
     return () => window.clearInterval(timer);
   }, [reduced, complete]);
+
+  useEffect(() => {
+    if (!total) return;
+    if (reduced || settled) {
+      setShown(target);
+      return;
+    }
+    const fillMs = 7000;
+    const tickMs = 50;
+    const step = total / (fillMs / tickMs);
+    const timer = window.setInterval(() => {
+      setShown((prev) => (prev >= target ? prev : Math.min(target, prev + step)));
+    }, tickMs);
+    return () => window.clearInterval(timer);
+  }, [target, total, reduced, settled]);
 
   useEffect(() => {
     const previousFocus =
@@ -121,10 +143,10 @@ export function FolderScan({
             <AnimatePresence initial={false}>
               <motion.g
                 key={cursor}
-                initial={reduced ? false : { x: -120, rotate: -8, opacity: 0 }}
-                animate={{ x: 0, rotate: 0, opacity: 1 }}
-                exit={{ x: 120, rotate: 8, opacity: 0 }}
-                transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+                initial={reduced ? false : { x: 0, y: 150, rotate: -6, opacity: 0, scale: 0.72 }}
+                animate={{ x: 0, y: 0, rotate: 0, opacity: 1, scale: 1 }}
+                exit={{ x: 70, y: -20, rotate: 6, opacity: 0 }}
+                transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }}
                 style={{ transformOrigin: "320px 240px" }}
               >
                 <rect
@@ -206,7 +228,9 @@ export function FolderScan({
             </span>
             <span className="scan-loader-counter">
               {complete ? <Check size={16} /> : null}
-              <strong>{String(total ? (count?.done ?? 0) : previewNumber).padStart(2, "0")}</strong>
+              <strong>
+                {String(total ? Math.min(total, Math.round(displayed)) : previewNumber).padStart(2, "0")}
+              </strong>
               <span>/ {String(total || list.length).padStart(2, "0")}</span>
             </span>
           </div>
@@ -216,21 +240,21 @@ export function FolderScan({
             aria-label="Image analysis"
             aria-valuemin={0}
             aria-valuemax={100}
-            {...(total && (count?.done ?? 0) > 0
-              ? { "aria-valuenow": Math.round(((count?.done ?? 0) / total) * 100) }
+            {...(total && displayed > 0
+              ? { "aria-valuenow": Math.round((Math.min(total, displayed) / total) * 100) }
               : {})}
             aria-valuetext={complete ? "Analysis complete" : "Analysis in progress"}
           >
             <span
               style={
-                total && (count?.done ?? 0) > 0
-                  ? { width: `${Math.round(((count?.done ?? 0) / total) * 100)}%` }
+                total && displayed > 0
+                  ? { width: `${Math.round((Math.min(total, displayed) / total) * 100)}%` }
                   : undefined
               }
             />
           </div>
           <div className="visually-hidden" role="status">
-            {complete ? "Analysis complete" : `${count?.done ?? 0} images processed`}
+            {complete ? "Analysis complete" : `${Math.round(displayed)} images processed`}
           </div>
         </div>
       </div>

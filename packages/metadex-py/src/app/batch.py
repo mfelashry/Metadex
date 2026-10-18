@@ -8,6 +8,8 @@ Two inputs feed the same pipeline:
 
 Each image still goes through analyze_bytes, so single and batch reports agree.
 """
+from __future__ import annotations
+
 import hashlib
 import os
 import threading
@@ -160,7 +162,7 @@ def _correlations(entries: list) -> dict:
     by_payload: dict = {}
     for e in entries:
         seen = set()
-        for payload in e["report"]["recovery"]["payloads"]:
+        for payload in ((e.get("report") or {}).get("recovery") or {}).get("payloads", []):
             key = payload["sha256"]
             if key in seen:
                 continue

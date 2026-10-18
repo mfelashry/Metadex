@@ -1,7 +1,8 @@
 import { uploadImages, type BatchScan, type RankedImage } from "./stillframe";
 
-// The checker returns a batch only after every file finishes. Small concurrent
-// batches let the interface report genuine completed images as they arrive.
+// Stay under the checker's per-request file cap, then keep going until every photo is sent.
+const REQUEST_BATCH = 150;
+
 export async function scanImagesWithProgress(
   files: File[],
   previews: string[],
@@ -9,43 +10,37 @@ export async function scanImagesWithProgress(
 ): Promise<BatchScan> {
   const results: RankedImage[] = [];
   const skipped: NonNullable<BatchScan["skipped"]> = [];
-  let cursor = 0;
-  let done = 0;
-  let networkError: TypeError | null = null;
   const batches: BatchScan[] = [];
 
-  async function worker() {
-    while (cursor < files.length && !networkError) {
-      const index = cursor++;
-      const file = files[index]!;
-      try {
-        const batch = await uploadImages([file]);
-        batches.push(batch);
-        for (const entry of batch.ranking ?? []) {
-          results.push({
-            ...entry,
-            id: `${index}-${entry.id}`,
-            local_preview: previews[index]!,
-          });
-        }
-        skipped.push(...(batch.skipped ?? []));
-      } catch (error) {
-        if (error instanceof TypeError) {
-          networkError = error;
-          break;
-        }
-        skipped.push({
-          filename: file.name,
-          reason: error instanceof Error ? error.message : "Could not read image",
+  for (let start = 0; start < files.length; start += REQUEST_BATCH) {
+    const sliceFiles = files.slice(start, start + REQUEST_BATCH);
+    const byName = new Map(
+      sliceFiles.map((file, offset) => [file.name, { index: start + offset, preview: previews[start + offset] }]),
+    );
+    try {
+      const batch = await uploadImages(sliceFiles);
+      batches.push(batch);
+      for (const entry of batch.ranking ?? []) {
+        const match =
+          byName.get(entry.filename) ?? byName.get(entry.filename.split("/").pop() || "");
+        results.push({
+          ...entry,
+          id: `${match?.index ?? start}-${entry.id}`,
+          ...(match?.preview ? { local_preview: match.preview } : {}),
         });
       }
-      onProgress(++done, files.length);
+      skipped.push(...(batch.skipped ?? []));
+    } catch (error) {
+      if (error instanceof TypeError) {
+        throw new Error(
+          "The forensic scanner is not running. Start it at 127.0.0.1:8741, then upload again.",
+        );
+      }
+      const reason = error instanceof Error ? error.message : "Could not read image";
+      for (const file of sliceFiles) skipped.push({ filename: file.name, reason });
     }
+    onProgress(Math.min(start + sliceFiles.length, files.length), files.length);
   }
-
-  const concurrency = files.length >= 60 ? 8 : files.length >= 20 ? 6 : 3;
-  await Promise.all(Array.from({ length: Math.min(concurrency, files.length) }, worker));
-  if (networkError) throw networkError;
 
   results.sort((a, b) => b.score - a.score);
   results.forEach((entry, index) => {

@@ -22,7 +22,6 @@ import {
   X,
 } from "lucide-react";
 import { FolderScan, type DeckCard } from "./FolderScan";
-import { scanImagesInBrowser } from "@/lib/browser-batch";
 import { scanImagesWithProgress } from "@/lib/live-batch";
 import { analyzeImage, formatBytes, sniffImage, type ImageAnalysis } from "./analyzeImage";
 import { publishDesk } from "@/lib/report-desk";
@@ -308,6 +307,56 @@ const orbitNotes = [
   { label: "Size", value: "3024 × 4032" },
 ] as const;
 
+function PythonMark() {
+  return (
+    <svg className="download-mark" viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        fill="currentColor"
+        fillRule="evenodd"
+        d="M14.25.18l.9.2.73.26.59.3.45.32.34.34.25.34.16.33.1.3.04.26.02.2-.01.13V8.5l-.05.63-.13.55-.21.46-.26.38-.3.31-.33.25-.35.19-.35.14-.33.1-.3.07-.26.04-.21.02H8.77l-.69.05-.59.14-.5.22-.41.27-.33.32-.27.35-.2.36-.15.37-.1.35-.07.32-.04.27-.02.21v3.06H3.17l-.21-.03-.28-.07-.32-.12-.35-.18-.36-.26-.36-.36-.35-.46-.32-.59-.28-.73-.21-.88-.14-1.05-.05-1.23.06-1.22.16-1.04.24-.87.32-.71.36-.57.4-.44.42-.33.42-.24.4-.16.36-.1.32-.05.24-.01h.16l.06.01h8.16v-.83H6.18l-.01-2.75-.02-.37.05-.34.11-.31.17-.28.25-.26.31-.23.38-.2.44-.18.51-.15.58-.12.64-.1.71-.06.77-.04.84-.02 1.27.05zm-6.3 1.98-.23.33-.08.41.08.41.23.34.33.22.41.09.41-.09.33-.22.23-.34.08-.41-.08-.41-.23-.33-.33-.22-.41-.09zm13.09 3.95.28.06.32.12.35.18.36.27.36.35.35.47.32.59.28.73.21.88.14 1.04.05 1.23-.06 1.23-.16 1.04-.24.86-.32.71-.36.57-.4.45-.42.33-.42.24-.4.16-.36.09-.32.05-.24.02-.16-.01h-8.22v.82h5.84l.01 2.76.02.36-.05.34-.11.31-.17.29-.25.25-.31.24-.38.2-.44.17-.51.15-.58.13-.64.09-.71.07-.77.04-.84.01-1.27-.04-1.07-.14-.9-.2-.73-.25-.59-.3-.45-.33-.34-.34-.25-.34-.16-.33-.1-.3-.04-.25-.02-.2.01-.13v-5.34l.05-.64.13-.54.21-.46.26-.38.3-.32.33-.24.35-.2.35-.14.33-.1.3-.06.26-.04.21-.02.13-.01h5.84l.69-.05.59-.14.5-.21.41-.28.33-.32.27-.35.2-.36.15-.36.1-.35.07-.32.04-.28.02-.21V6.07h2.09l.14.01zm-6.47 14.25-.23.33-.08.41.08.41.23.33.33.23.41.08.41-.08.33-.23.23-.33.08-.41-.08-.41-.23-.33-.33-.23-.41-.08z"
+      />
+    </svg>
+  );
+}
+
+function NodeMark() {
+  return (
+    <svg className="download-mark" viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        fill="currentColor"
+        d="M11.998 24c-.321 0-.641-.084-.922-.247l-2.936-1.737c-.438-.245-.224-.332-.08-.383.585-.203.703-.25 1.328-.604.065-.037.151-.023.218.017l2.256 1.339c.082.045.197.045.272 0l8.795-5.076c.082-.047.134-.141.134-.238V6.921c0-.099-.053-.192-.137-.242l-8.791-5.072c-.081-.047-.189-.047-.271 0L3.075 6.68c-.085.049-.139.145-.139.241v10.15c0 .097.054.189.139.235l2.409 1.392c1.307.654 2.108-.116 2.108-.89V7.787c0-.142.114-.253.256-.253h1.115c.139 0 .255.112.255.253v10.021c0 1.745-.95 2.745-2.604 2.745-.508 0-.909 0-2.026-.551L2.28 18.675c-.57-.329-.922-.945-.922-1.604V6.921c0-.659.353-1.275.922-1.603l8.795-5.082c.557-.315 1.296-.315 1.848 0l8.794 5.082c.57.329.924.944.924 1.603v10.15c0 .659-.354 1.273-.924 1.604l-8.794 5.078c-.281.164-.6.248-.926.248zm7.101-10.007c0-1.9-1.284-2.406-3.987-2.763-2.731-.361-3.009-.548-3.009-1.187 0-.528.235-1.233 2.258-1.233 1.807 0 2.473.389 2.747 1.607.024.115.129.199.247.199h1.141c.071 0 .138-.031.186-.081a.253.253 0 0 0 .067-.196c-.177-2.098-1.571-3.076-4.388-3.076-2.508 0-4.004 1.058-4.004 2.833 0 1.925 1.488 2.457 3.895 2.695 2.88.282 3.103.703 3.103 1.269 0 .983-.789 1.402-2.642 1.402-2.327 0-2.839-.584-3.011-1.742-.02-.124-.126-.215-.253-.215H8.56c-.141 0-.254.112-.254.253 0 1.482.806 3.248 4.655 3.248 2.592 0 4.19-1.097 4.19-3.014z"
+      />
+    </svg>
+  );
+}
+
+function ZipMark() {
+  return (
+    <svg className="download-mark" viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="4" y="3" width="16" height="18" rx="2" fill="none" stroke="currentColor" strokeWidth="1.7" />
+      <path d="M12 6.2v11.6" fill="none" stroke="currentColor" strokeWidth="1.7" />
+      <path
+        d="M9.4 7.6h5.2M9.4 10.2h5.2M9.4 12.8h5.2M9.4 15.4h5.2M9.4 18h5.2"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function GithubMark() {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+      <path
+        fill="currentColor"
+        d="M12 2C6.5 2 2 6.6 2 12.2c0 4.5 2.9 8.3 6.9 9.6.5.1.7-.2.7-.5v-1.7c-2.8.6-3.4-1.2-3.4-1.2-.5-1.1-1.1-1.4-1.1-1.4-.9-.6.1-.6.1-.6 1 .1 1.5 1 1.5 1 .9 1.5 2.4 1.1 3 .9.1-.7.4-1.1.7-1.4-2.2-.3-4.6-1.1-4.6-5 0-1.1.4-2 1-2.7-.1-.3-.4-1.3.1-2.7 0 0 .8-.3 2.8 1a9.6 9.6 0 0 1 5.1 0c2-1.3 2.8-1 2.8-1 .5 1.4.2 2.4.1 2.7.6.7 1 1.6 1 2.7 0 3.9-2.3 4.7-4.6 5 .4.3.7 1 .7 1.9v2.8c0 .3.2.6.7.5A10.2 10.2 0 0 0 22 12.2C22 6.6 17.5 2 12 2z"
+      />
+    </svg>
+  );
+}
+
 function CommandBlock({ text, live }: { text: string; live: boolean }) {
   const reduceMotion = useReducedMotion();
   const [count, setCount] = useState(0);
@@ -455,6 +504,7 @@ export function ScrollStory() {
   const [scannerBusy, setScannerBusy] = useState(false);
   const [loadLabel, setLoadLabel] = useState("");
   const [loadCount, setLoadCount] = useState<{ done: number; total: number } | null>(null);
+  const [loadSettled, setLoadSettled] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [scan, setScan] = useState<ScanState>({
     open: false,
@@ -471,6 +521,7 @@ export function ScrollStory() {
   const storyRef = useRef<HTMLElement>(null);
   const urls = useRef<string[]>([]);
   const runId = useRef(0);
+  const loadStarted = useRef(0);
   const reduceMotion = useReducedMotion();
   const { scrollYProgress } = useScroll({ target: storyRef, offset: ["start start", "end end"] });
   const smoothProgress = useSpring(scrollYProgress, { stiffness: 120, damping: 32, mass: 0.3 });
@@ -494,7 +545,6 @@ export function ScrollStory() {
   const uploadEvents = useTransform(smoothProgress, (value) => (value > 0.97 ? "auto" : "none"));
   const [deck, setDeck] = useState<DeckCard[] | null>(null);
   const [docsLive, setDocsLive] = useState(false);
-  const [showFileData, setShowFileData] = useState(false);
   useMotionValueEvent(smoothProgress, "change", (value) => {
     if (value > 0.76) setDocsLive(true);
   });
@@ -559,12 +609,19 @@ export function ScrollStory() {
   const openUpload = () => uploadInput.current?.click();
   const openFolder = () => folderInput.current?.click();
   const beginLoad = (label: string, total: number) => {
+    loadStarted.current = Date.now();
+    setLoadSettled(false);
     setLoadLabel(label);
     setLoadCount({ done: 0, total });
   };
   const finishLoad = async (total: number) => {
     setLoadCount({ done: total, total });
-    await sleep(reduceMotion ? 0 : 180);
+    const elapsed = Date.now() - loadStarted.current;
+    const cinematicMs = 7000;
+    const hold = reduceMotion ? 0 : Math.max(0, cinematicMs - elapsed);
+    await sleep(hold);
+    setLoadSettled(true);
+    await sleep(reduceMotion ? 0 : 700);
   };
   const openScannerReport = (batch: Awaited<ReturnType<typeof runDemoBatch>>, title: string) => {
     publishScan(batch, title);
@@ -625,7 +682,7 @@ export function ScrollStory() {
     const incoming = Array.isArray(list)
       ? list
       : await collectFiles(list ?? new DataTransfer().files, items);
-    const images = incoming.filter(looksLikeImage).slice(0, 200);
+    const images = incoming.filter(looksLikeImage);
     if (!images.length) {
       setUploadError("No readable images were found in that selection.");
       return;
@@ -636,7 +693,7 @@ export function ScrollStory() {
       (images.length === 1 ? images[0]!.name : `${images.length} photos`);
     const previews = images.map((file) => URL.createObjectURL(file));
     const cards: DeckCard[] = images
-      .slice(0, 12)
+      .slice(0, 8)
       .map((file, index) => ({ name: file.name, preview: previews[index]! }));
     setDeck(cards);
     setScannerBusy(true);
@@ -645,13 +702,7 @@ export function ScrollStory() {
     try {
       const batch = await scanImagesWithProgress(images, previews, (done, total) =>
         setLoadCount({ done, total }),
-      ).catch((error: unknown) => {
-        // Keep local image checks available when the separate checker cannot be reached.
-        if (!(error instanceof TypeError)) throw error;
-        return scanImagesInBrowser(images, previews, (done, total) =>
-          setLoadCount({ done, total }),
-        );
-      });
+      );
       const previewByPath = new Map(
         images.map((file, index) => [
           (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name,
@@ -882,6 +933,15 @@ export function ScrollStory() {
           METADEX
         </a>
         <div className="nav-controls">
+          <a
+            className="theme-toggle"
+            href="https://github.com/mfelashry/Metadex"
+            target="_blank"
+            rel="noreferrer"
+            aria-label="GitHub"
+          >
+            <GithubMark />
+          </a>
           <button
             className="theme-toggle"
             type="button"
@@ -940,38 +1000,6 @@ export function ScrollStory() {
                       </div>
                     </motion.div>
                   )}
-                  <button
-                    className="file-data-toggle"
-                    type="button"
-                    aria-pressed={showFileData}
-                    onClick={() => setShowFileData((open) => !open)}
-                  >
-                    File data
-                  </button>
-                  {showFileData ? (
-                    <ul className="file-data-list">
-                      <li>
-                        <span>Camera</span>
-                        <strong>Canon EOS R6</strong>
-                      </li>
-                      <li>
-                        <span>Time</span>
-                        <strong>Oct 15, 2026 · 4:42 PM</strong>
-                      </li>
-                      <li>
-                        <span>Place</span>
-                        <strong>38.8977, -77.0365</strong>
-                      </li>
-                      <li>
-                        <span>Software</span>
-                        <strong>Photoshop 25.1</strong>
-                      </li>
-                      <li>
-                        <span>Comment</span>
-                        <strong>96 KB of text</strong>
-                      </li>
-                    </ul>
-                  ) : null}
                 </div>
               </div>
             </motion.div>
@@ -1011,27 +1039,29 @@ export function ScrollStory() {
               <h2>From the terminal</h2>
               <p>Download the local checker, then scan a photo or folder.</p>
               <div className="download-options">
-                <a href="/downloads/metadex-0.2.0-py3-none-any.whl" download>
+                <a href="/downloads/metadex-0.8.1-py3-none-any.whl" download>
+                  <PythonMark />
                   Download for Python <span>Checker + terminal command</span>
                 </a>
-                <a href="/downloads/metadex-0.2.0.tgz" download>
+                <a href="/downloads/metadex-0.8.1.tgz" download>
+                  <NodeMark />
                   Download for Node <span>Terminal command · needs the Python checker</span>
                 </a>
-                <a href="/downloads/metadex-source-0.2.0.zip" download>
+                <a href="/downloads/metadex-source-0.8.1.zip" download>
+                  <ZipMark />
                   Source ZIP <span>Both packages</span>
                 </a>
               </div>
               <CommandBlock
                 live={docsLive}
-                text={
-                  "python3 -m pip install ~/Downloads/metadex-0.2.0-py3-none-any.whl\nmetadex scan ~/Pictures"
-                }
+                text={"python3 -m pip install ~/Downloads/metadex-0.8.1-py3-none-any.whl"}
               />
-              <p>
-                Run <code>metadex serve</code> for the website. Add <code>--json</code> for full
-                results. Gemini explanations need <code>GEMINI_API_KEY</code> set before starting
-                the checker.
-              </p>
+              <div className="terminal-examples">
+                <p>One file</p>
+                <CommandBlock live={docsLive} text={"metadex ./photo.jpg"} />
+                <p>A folder</p>
+                <CommandBlock live={docsLive} text={"metadex ~/Pictures"} />
+              </div>
             </motion.div>
             <motion.div
               className="stage-upload"
@@ -1158,7 +1188,7 @@ export function ScrollStory() {
         }}
       />
       {(deck || scannerBusy || isProcessing) && (
-        <FolderScan cards={deck} label={loadLabel} count={loadCount} />
+        <FolderScan cards={deck} label={loadLabel} count={loadCount} settled={loadSettled} />
       )}
     </div>
   );

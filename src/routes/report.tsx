@@ -1,10 +1,11 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { ChevronDown, History, Moon, Sparkles, Sun } from "lucide-react";
+import { ChevronDown, History, Moon, Sun } from "lucide-react";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { publishDesk, readDesk, selectDeskItem, subscribeDesk } from "@/lib/report-desk";
 import { statusLabel, type CheckStatus } from "@/lib/scan-report";
-import { explainFinding, levelMark, previewSrc, type RankedImage } from "@/lib/stillframe";
+import { answerQuestion, collectScanEvidence, localScanSummary, summarizeScan } from "@/lib/scan-summary";
+import { levelMark, previewSrc, type RankedImage } from "@/lib/stillframe";
 import { openSaved, readScan, selectScan, subscribeScan } from "@/lib/stillframe-store";
 
 export const Route = createFileRoute("/report")({
@@ -30,8 +31,8 @@ function ScannerReport() {
   const batch = scan.batch;
   const ranking = batch?.ranking ?? [];
   const selected = ranking.find((item) => item.id === scan.selectedId) ?? ranking[0] ?? null;
-  const suspicious = ranking.filter((item) => item.level === "high" || item.level === "suspicious");
-  const normal = ranking.filter((item) => item.level !== "high" && item.level !== "suspicious");
+  const suspicious = ranking.filter((item) => isTextSuspicious(item));
+  const normal = ranking.filter((item) => !isTextSuspicious(item));
   const [open, setOpen] = useState({ suspicious: true, normal: suspicious.length === 0 });
 
   useEffect(() => {
@@ -45,7 +46,12 @@ function ScannerReport() {
       <p className="visually-hidden" aria-live="polite">
         {batch.summary?.headline}
       </p>
-      <p className="scanner-headline">{batch.summary?.headline}</p>
+      <div className="scanner-headline-row">
+        <p className="scanner-headline">{batch.summary?.headline}</p>
+        <button type="button" className="download-json" onClick={() => downloadScan(batch)}>
+          Download JSON
+        </button>
+      </div>
       <p className="scanner-meta">
         {batch.source?.type === "browser"
           ? "Checked in your browser"
@@ -71,6 +77,7 @@ function ScannerReport() {
         <AnimatePresence mode="wait" initial={false}>
           {selected && <ImageDetail key={selected.id} entry={selected} />}
         </AnimatePresence>
+        <CaseChat items={ranking} scanId={batch.scan_id ?? batch.summary?.headline ?? ""} />
       </div>
       <details className="scanner-about">
         <summary>About this scan</summary>
@@ -154,14 +161,11 @@ function ImageDetail({ entry }: { entry: RankedImage }) {
   const report = entry.report;
   const messages = entry.messages ?? report?.messages_found ?? [];
   const src = previewSrc(entry);
-  const uniqueMessages = [
-    ...new Map(
-      messages.filter((message) => message.text).map((message) => [message.text!.trim(), message]),
-    ).values(),
-  ];
   const fields = (report?.image_analysis?.metadata_messages?.fields ?? []).filter(
     (field) => field.flagged || field.decoded || field.preview,
   );
+  const plainFacts = detailFacts(fields, entry);
+  const recoveredCards = recoveredFrom(fields, messages);
   return (
     <motion.article
       className="scanner-detail"
@@ -190,38 +194,48 @@ function ImageDetail({ entry }: { entry: RankedImage }) {
           .filter(Boolean)
           .join(" · ")}
       </p>
-      <section className="scanner-finding">
-        <h2>What we found</h2>
-        <p>
-          {entry.top_reasons?.[0] ||
-            (entry.level === "none"
-              ? "No hidden-data indicators found in this image."
-              : entry.headline || "This image needs a closer look.")}
-        </p>
-      </section>
-      {uniqueMessages.length > 0 && (
+      {plainFacts.length > 0 && (
+        <details className="scanner-technical scanner-details">
+          <summary>Details</summary>
+          <ul className="scanner-facts">
+            {plainFacts.map((fact) => (
+              <li key={`${fact.label}-${fact.value}`}>
+                <span>{fact.label}</span>
+                <strong>{fact.value}</strong>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+      {recoveredCards.length > 0 && (
         <section className="scanner-messages">
           <h2>Recovered text</h2>
-          {uniqueMessages.map((message) => (
-            <blockquote key={`${message.where}-${message.text}`}>
-              <p>{message.text}</p>
-              <footer>
-                {message.where}
-                {message.encoding && message.encoding !== "utf-8" ? ` · ${message.encoding}` : ""}
-              </footer>
+          {recoveredCards.map((card) => (
+            <blockquote key={card.key}>
+              <p className="recovered-label">{card.where}</p>
+              {card.encoded ? (
+                <>
+                  <p>Encoded: {card.encoded}</p>
+                  <p>Decoded: {card.decoded}</p>
+                </>
+              ) : (
+                <p>{card.decoded}</p>
+              )}
             </blockquote>
           ))}
         </section>
       )}
-      <GeminiExplanation entry={entry} />
       {(fields.length > 0 ||
         (entry.top_reasons?.length ?? 0) > 1 ||
         (report?.activity_correlation?.timeline?.length ?? 0) > 0) && (
         <details className="scanner-technical">
           <summary>More details</summary>
-          {(entry.top_reasons ?? []).slice(1, 5).map((reason) => (
-            <p key={reason}>{reason}</p>
-          ))}
+          {(entry.top_reasons ?? [])
+            .filter((reason) => !isPixelNote(reason))
+            .slice(0, 4)
+            .map((reason) => (
+              <p key={reason}>{reason}</p>
+            ))}
           {fields.slice(0, 8).map((field) => (
             <p key={field.field}>
               <strong>{field.field}</strong> {field.decoded || field.preview}
@@ -238,39 +252,209 @@ function ImageDetail({ entry }: { entry: RankedImage }) {
   );
 }
 
-function GeminiExplanation({ entry }: { entry: RankedImage }) {
-  const [text, setText] = useState("");
-  const [error, setError] = useState("");
+const FACT_LABELS: Record<string, string> = {
+  DateTime: "Date",
+  DateTimeOriginal: "Date",
+  DateTimeDigitized: "Date",
+  Make: "Camera",
+  Model: "Camera",
+  Artist: "Author",
+  Software: "Software",
+  GPS: "Place",
+  DocumentName: "Place",
+  Copyright: "Copyright",
+};
+
+function detailFacts(
+  fields: { field?: string; preview?: string; decoded?: string | null; flagged?: boolean }[],
+  entry: RankedImage,
+) {
+  const rows: { label: string; value: string }[] = [];
+  const camera = ["Make", "Model"]
+    .map((name) => fields.find((field) => field.field === name)?.preview || fields.find((field) => field.field === name)?.decoded)
+    .filter(Boolean)
+    .join(" ");
+  if (camera) rows.push({ label: "Camera", value: camera });
+  for (const name of ["DateTimeOriginal", "DateTime", "Artist", "Software", "GPS", "DocumentName"]) {
+    const field = fields.find((item) => item.field === name);
+    const value = (field?.decoded || field?.preview || "").trim();
+    if (!value || rows.some((row) => row.label === FACT_LABELS[name] && row.value === value)) continue;
+    if (name === "Make" || name === "Model") continue;
+    rows.push({ label: FACT_LABELS[name] || name, value });
+  }
+  if (entry.width && entry.height) rows.push({ label: "Pixels", value: `${entry.width} × ${entry.height}` });
+  return rows;
+}
+
+function recoveredFrom(
+  fields: { field?: string; preview?: string; decoded?: string | null; flagged?: boolean; encoding?: string }[],
+  messages: { text?: string; where?: string; encoding?: string; original?: string }[],
+) {
+  const flagged = fields.filter((field) => field.flagged && (field.decoded || field.preview));
+  if (flagged.length) {
+    return flagged.map((field, index) => {
+      const coded = /base64|hex/i.test(field.encoding || "");
+      return {
+        key: `${field.field}-${index}`,
+        where: field.field || "Metadata",
+        encoded: coded ? field.preview || "" : "",
+        decoded: field.decoded || field.preview || "",
+      };
+    });
+  }
+  return messages
+    .filter((message) => message.text)
+    .map((message, index) => {
+      const coded = /base64|hex/i.test(message.encoding || "");
+      return {
+        key: `${message.where}-${index}`,
+        where: message.where || "Metadata",
+        encoded: coded ? message.original || "" : "",
+        decoded: message.text || "",
+      };
+    });
+}
+
+function downloadScan(batch: object) {
+  const copy = JSON.parse(JSON.stringify(batch)) as { ranking?: { local_preview?: string }[] };
+  for (const entry of copy.ranking ?? []) delete entry.local_preview;
+  const blob = new Blob([JSON.stringify(copy, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "metadex-scan.json";
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function CaseChat({ items, scanId }: { items: RankedImage[]; scanId: string }) {
+  const lineKey = items
+    .map((item) =>
+      (item.messages ?? item.report?.messages_found ?? [])
+        .map((message) => message.text ?? "")
+        .join("|"),
+    )
+    .join("\n");
+  const evidence = collectScanEvidence(items);
+  const [summary, setSummary] = useState(() => localScanSummary(evidence));
+  const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
-  const explain = async () => {
+  const [turns, setTurns] = useState<{ role: "user" | "assistant"; text: string }[]>([]);
+  useEffect(() => {
+    const nextEvidence = collectScanEvidence(items);
+    const local = localScanSummary(nextEvidence);
+    setSummary(local);
+    let cancel = false;
+    void summarizeScan(nextEvidence).then((next) => {
+      if (!cancel && next) setSummary(next);
+    });
+    return () => {
+      cancel = true;
+    };
+  }, [items, lineKey, scanId]);
+  const send = async () => {
+    const text = draft.trim();
+    if (!text || busy) return;
+    setDraft("");
+    const history = [...turns, { role: "user" as const, text }];
+    setTurns(history);
     setBusy(true);
-    setError("");
     try {
-      setText(await explainFinding(entry));
-    } catch (reason) {
-      setError(
-        reason instanceof Error ? reason.message : "Could not get an explanation right now.",
-      );
+      const reply = await answerQuestion(evidence, text, history);
+      setTurns((current) => [...current, { role: "assistant", text: reply }]);
     } finally {
       setBusy(false);
     }
   };
   return (
-    <section className="scanner-gemini">
-      <div>
-        <Sparkles size={18} aria-hidden="true" />
-        <h2>Plain-language explanation</h2>
+    <aside className="ai-panel ask-chat" aria-label="Scan chat">
+      <h2 className="chat-title">
+        <GeminiMark />
+        Chat
+      </h2>
+      <div className="ask-log" role="log" aria-live="polite">
+        <p className="ask-reply">
+          <GeminiMark />
+          <TypedText text={summary} />
+        </p>
+        {turns.map((turn, index) => (
+          <p key={`${turn.role}-${index}`} className={turn.role === "user" ? "ask-user" : "ask-reply"}>
+            {turn.role === "assistant" ? <GeminiMark /> : null}
+            {turn.role === "assistant" ? <TypedText text={turn.text} /> : turn.text}
+          </p>
+        ))}
+        {busy ? (
+          <p className="ask-reply ask-typing" aria-label="Gemini is typing">
+            <GeminiMark />
+            <span>Typing</span>
+          </p>
+        ) : null}
       </div>
-      <p>
-        Ask Gemini to explain these finding labels. Your photo and recovered text stay on this
-        computer.
-      </p>
-      <button type="button" disabled={busy} onClick={() => void explain()}>
-        {busy ? "Explaining…" : "Explain with Gemini"}
-      </button>
-      {text && <p className="scanner-gemini-answer">{text}</p>}
-      {error && <p role="alert">{error}</p>}
-    </section>
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          void send();
+        }}
+      >
+        <input
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          placeholder="Ask about this scan"
+          aria-label="Ask about this scan"
+          disabled={busy}
+        />
+        <button type="submit" disabled={busy || !draft.trim()}>
+          Send
+        </button>
+      </form>
+    </aside>
+  );
+}
+
+function isPixelNote(text: string) {
+  return /score|pixel|chi-square|even pairs|last bit|lsb/i.test(text);
+}
+
+function isTextSuspicious(entry: RankedImage) {
+  const messages = entry.messages ?? entry.report?.messages_found ?? [];
+  if (messages.some((message) => message.text)) return true;
+  const reasons = (entry.top_reasons ?? []).filter((reason) => !isPixelNote(reason));
+  return reasons.length > 0 && (entry.level === "high" || entry.level === "suspicious");
+}
+
+function GeminiMark() {
+  return (
+    <svg className="gemini-mark" viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        fill="currentColor"
+        d="M12 1.5c.4 3.6 2.2 6.4 5.2 8.3-3 1.9-4.8 4.7-5.2 8.2-.4-3.5-2.2-6.3-5.2-8.2 3-1.9 4.8-4.7 5.2-8.3Z"
+      />
+    </svg>
+  );
+}
+
+function TypedText({ text }: { text: string }) {
+  const reduced = useReducedMotion();
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    if (reduced) {
+      setCount(text.length);
+      return;
+    }
+    setCount(0);
+    let index = 0;
+    const timer = window.setInterval(() => {
+      index += 2;
+      setCount(Math.min(index, text.length));
+      if (index >= text.length) window.clearInterval(timer);
+    }, 18);
+    return () => window.clearInterval(timer);
+  }, [text, reduced]);
+  return (
+    <span>
+      {text.slice(0, count)}
+      {count < text.length ? <i className="summary-caret" /> : null}
+    </span>
   );
 }
 
@@ -337,6 +521,20 @@ function ReportPage() {
         </div>
         {scan.title ? <p className="viewing">{scan.title}</p> : <span />}
         <div className="nav-controls">
+          <a
+            className="theme-toggle"
+            href="https://github.com/mfelashry/Metadex"
+            target="_blank"
+            rel="noreferrer"
+            aria-label="GitHub"
+          >
+            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+              <path
+                fill="currentColor"
+                d="M12 2C6.5 2 2 6.6 2 12.2c0 4.5 2.9 8.3 6.9 9.6.5.1.7-.2.7-.5v-1.7c-2.8.6-3.4-1.2-3.4-1.2-.5-1.1-1.1-1.4-1.1-1.4-.9-.6.1-.6.1-.6 1 .1 1.5 1 1.5 1 .9 1.5 2.4 1.1 3 .9.1-.7.4-1.1.7-1.4-2.2-.3-4.6-1.1-4.6-5 0-1.1.4-2 1-2.7-.1-.3-.4-1.3.1-2.7 0 0 .8-.3 2.8 1a9.6 9.6 0 0 1 5.1 0c2-1.3 2.8-1 2.8-1 .5 1.4.2 2.4.1 2.7.6.7 1 1.6 1 2.7 0 3.9-2.3 4.7-4.6 5 .4.3.7 1 .7 1.9v2.8c0 .3.2.6.7.5A10.2 10.2 0 0 0 22 12.2C22 6.6 17.5 2 12 2z"
+              />
+            </svg>
+          </a>
           <button
             className="theme-toggle"
             type="button"

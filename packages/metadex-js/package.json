@@ -1,7 +1,7 @@
 {
   "name": "metadex",
-  "version": "0.2.0",
-  "description": "Scan a photo or a folder for hidden data from the terminal.",
+  "version": "0.8.1",
+  "description": "Scan a photo, a folder, or the whole computer for hidden data from the terminal.",
   "type": "module",
   "bin": {
     "metadex": "./bin/metadex.mjs"
