@@ -110,8 +110,40 @@ def test_device_selection_never_invents_a_gpu():
     assert vision.resolve_device("auto", False) == "cpu"
     assert vision.resolve_device("cpu", True) == "cpu"
     assert vision.resolve_device("auto", True) == "cuda"
+    assert vision.resolve_device("auto", False, True) == "mps"
+    assert vision.resolve_device("cpu", False, True) == "cpu"
+    assert vision.embed_batch_size("cpu") >= 16
+    assert vision.embed_batch_size("mps") >= 32
     with pytest.raises(vision.EncoderError, match="GPU setup failed"):
         vision.resolve_device("cuda", False)
+    with pytest.raises(vision.EncoderError, match="Apple GPU"):
+        vision.resolve_device("mps", False, False)
+
+
+def test_embed_images_batches_one_forward_pass():
+    class BatchEncoder:
+        def __init__(self):
+            self.batches = []
+            self.device = "mps"
+
+        def encode_images(self, images):
+            self.batches.append(len(images))
+            return [[1.0, 0.0, 0.0] for _ in images]
+
+        def encode_image(self, _image):
+            raise AssertionError("images should be encoded together")
+
+    encoder = BatchEncoder()
+    vision.set_encoder(encoder)
+    try:
+        from PIL import Image as PILImage
+
+        vectors = vision.embed_images([PILImage.new("RGB", (8, 8), (0, 0, 0)) for _ in range(3)])
+    finally:
+        vision.clear_encoder()
+    assert encoder.batches == [3]
+    assert len(vectors) == 3
+    assert vectors[0][0] == pytest.approx(1)
 
 
 def test_missing_weights_are_reported(monkeypatch):
@@ -129,6 +161,19 @@ def test_missing_weights_are_reported(monkeypatch):
     assert body["device"] is None
     assert body["error"]
     vision.reset_for_tests()
+
+
+def test_case_list_is_not_a_missing_route(api):
+    client, _encoder = api
+    empty = client.get("/api/cases")
+    assert empty.status_code == 200
+    assert empty.json() == []
+    created = client.post("/api/cases/demo")
+    assert created.status_code == 200
+    listed = client.get("/api/cases")
+    assert listed.status_code == 200
+    assert created.json()["id"] in {item["id"] for item in listed.json()}
+    _assert_private(listed.json())
 
 
 def test_health_reports_the_actual_device(api):

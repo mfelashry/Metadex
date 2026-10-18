@@ -299,6 +299,12 @@ async def _collect_uploads(images: list[UploadFile]) -> tuple[list[dict], list[d
     return kept, rejected
 
 
+@app.get("/api/cases")
+def read_cases():
+    """List open cases. An empty list is a normal response, not a missing route."""
+    return cases.list_cases()
+
+
 @app.post("/api/cases")
 async def create_case(images: list[UploadFile] = File(...), name: str = Form("")):
     """Index uploaded images and run the same forensic analyzer as a manual scan."""

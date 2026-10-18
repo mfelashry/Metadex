@@ -5,8 +5,10 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { publishDesk, readDesk, selectDeskItem, subscribeDesk } from "@/lib/report-desk";
 import { statusLabel, type CheckStatus } from "@/lib/scan-report";
 import { answerQuestion, collectScanEvidence, localScanSummary, summarizeScan } from "@/lib/scan-summary";
-import { levelMark, previewSrc, type RankedImage } from "@/lib/stillframe";
-import { openSaved, readScan, selectScan, subscribeScan } from "@/lib/stillframe-store";
+import { levelMark, previewSrc, type BatchScan, type RankedImage } from "@/lib/stillframe";
+import { LearnLink } from "@/components/evidex/LearnLink";
+import { createCase, fetchCase, formatSimilarity, listCases, searchCase, selectVisualMatches, type EvidenceCase, type SearchResponse } from "@/lib/evidence-search";
+import { openSaved, readScan, rememberSearchCase, searchCaseFor, selectScan, subscribeScan } from "@/lib/stillframe-store";
 
 export const Route = createFileRoute("/report")({
   head: () => ({
@@ -30,9 +32,16 @@ function ScannerReport() {
   const scan = useScan();
   const batch = scan.batch;
   const ranking = batch?.ranking ?? [];
-  const selected = ranking.find((item) => item.id === scan.selectedId) ?? ranking[0] ?? null;
-  const suspicious = ranking.filter((item) => isTextSuspicious(item));
-  const normal = ranking.filter((item) => !isTextSuspicious(item));
+  const [query, setQuery] = useState("");
+  const [matchOrder, setMatchOrder] = useState<string[] | null>(null);
+  const [scores, setScores] = useState<Record<string, number>>({});
+  const [searchNote, setSearchNote] = useState<string | null>(null);
+  const [indexProgress, setIndexProgress] = useState<{ done: number; total: number } | null>(null);
+  const [searching, setSearching] = useState(false);
+  const shown = matchOrder ? orderMatches(ranking, matchOrder) : ranking;
+  const selected = shown.find((item) => item.id === scan.selectedId) ?? shown[0] ?? ranking.find((item) => item.id === scan.selectedId) ?? ranking[0] ?? null;
+  const suspicious = shown.filter((item) => isTextSuspicious(item));
+  const normal = shown.filter((item) => !isTextSuspicious(item));
   const [open, setOpen] = useState({ suspicious: true, normal: suspicious.length === 0 });
 
   useEffect(() => {
@@ -57,22 +66,120 @@ function ScannerReport() {
           ? "Checked in your browser"
           : "Checked by the local forensic backend"}
       </p>
+      <form
+        className="report-search"
+        onSubmit={(event) => {
+          event.preventDefault();
+          const text = query.trim();
+          if (!text) {
+            setMatchOrder(null);
+            setScores({});
+            setSearchNote(null);
+            setIndexProgress(null);
+            return;
+          }
+          setSearching(true);
+          setSearchNote(null);
+          setIndexProgress(null);
+          void searchReport(batch, scan.title, text, setIndexProgress)
+            .then((found) => {
+              setMatchOrder(found.names);
+              setScores(found.scores);
+              setSearchNote(found.note);
+              setIndexProgress((current) => (current ? { done: current.total, total: current.total } : null));
+              const first = orderMatches(ranking, found.names)[0];
+              if (first) selectScan(first.id);
+            })
+            .catch((reason: unknown) => {
+              setIndexProgress(null);
+              setSearchNote(reason instanceof Error ? reason.message : "Search could not run.");
+            })
+            .finally(() => setSearching(false));
+        }}
+      >
+        <label htmlFor="case-search">Search these photos</label>
+        <input
+          id="case-search"
+          value={query}
+          onChange={(event) => {
+            const next = event.target.value;
+            setQuery(next);
+            if (!next.trim()) {
+              setMatchOrder(null);
+              setScores({});
+              setSearchNote(null);
+              setIndexProgress(null);
+            }
+          }}
+          placeholder="black cat"
+        />
+        <button className="primary-action" type="submit" disabled={searching}>
+          {searching ? "Searching" : "Search"}
+        </button>
+        {matchOrder ? (
+          <button
+            className="secondary-action"
+            type="button"
+            onClick={() => {
+              setQuery("");
+              setMatchOrder(null);
+              setScores({});
+              setSearchNote(null);
+              setIndexProgress(null);
+            }}
+          >
+            Show all
+          </button>
+        ) : null}
+        {indexProgress && indexProgress.total > 0 ? (
+          <div
+            className="report-search-meter"
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={indexProgress.total}
+            aria-valuenow={Math.min(indexProgress.done, indexProgress.total)}
+            aria-label="Indexing these photos for search"
+          >
+            <span
+              style={{
+                width: `${Math.round((Math.min(indexProgress.done, indexProgress.total) / indexProgress.total) * 100)}%`,
+              }}
+            />
+          </div>
+        ) : null}
+      </form>
+      {searchNote ? <p className="report-search-note">{searchNote}</p> : null}
       <div className="scanner-split">
         <div className="scanner-groups">
-          <ResultGroup
-            title="Suspicious"
-            items={suspicious}
-            open={open.suspicious}
-            onToggle={() => setOpen((value) => ({ ...value, suspicious: !value.suspicious }))}
-            selectedId={selected?.id}
-          />
-          <ResultGroup
-            title="Normal"
-            items={normal}
-            open={open.normal}
-            onToggle={() => setOpen((value) => ({ ...value, normal: !value.normal }))}
-            selectedId={selected?.id}
-          />
+          {matchOrder ? (
+            <ResultGroup
+              title="Matches"
+              items={shown}
+              open
+              onToggle={() => undefined}
+              selectedId={selected?.id}
+              scores={scores}
+            />
+          ) : (
+            <>
+              <ResultGroup
+                title="Suspicious"
+                items={suspicious}
+                open={open.suspicious}
+                onToggle={() => setOpen((value) => ({ ...value, suspicious: !value.suspicious }))}
+                selectedId={selected?.id}
+                scores={scores}
+              />
+              <ResultGroup
+                title="Normal"
+                items={normal}
+                open={open.normal}
+                onToggle={() => setOpen((value) => ({ ...value, normal: !value.normal }))}
+                selectedId={selected?.id}
+                scores={scores}
+              />
+            </>
+          )}
         </div>
         <AnimatePresence mode="wait" initial={false}>
           {selected && <ImageDetail key={selected.id} entry={selected} />}
@@ -96,18 +203,166 @@ function displayName(entry: RankedImage) {
     : entry.filename;
 }
 
+function scoreFor(scores: Record<string, number>, filename: string) {
+  const file = filename.toLowerCase();
+  const base = file.split("/").pop() ?? file;
+  return scores[file] ?? scores[base];
+}
+
+function orderMatches(ranking: RankedImage[], names: string[]) {
+  const rank = new Map(names.map((name, index) => [name.toLowerCase(), index]));
+  return ranking
+    .filter((item) => {
+      const file = item.filename.toLowerCase();
+      const base = file.split("/").pop() ?? file;
+      return rank.has(file) || rank.has(base);
+    })
+    .sort((left, right) => {
+      const leftName = left.filename.toLowerCase();
+      const rightName = right.filename.toLowerCase();
+      const leftRank = rank.get(leftName) ?? rank.get(leftName.split("/").pop() ?? leftName) ?? 999;
+      const rightRank = rank.get(rightName) ?? rank.get(rightName.split("/").pop() ?? rightName) ?? 999;
+      return leftRank - rightRank;
+    });
+}
+
+async function filesFromReport(ranking: RankedImage[]) {
+  const loaded = await Promise.all(
+    ranking.map(async (item) => {
+      const src = previewSrc(item);
+      if (!src) return null;
+      try {
+        const response = await fetch(src);
+        if (!response.ok) return null;
+        const blob = await response.blob();
+        if (!blob.size) return null;
+        const name = item.filename.split(/[/\\]/).pop() || item.filename || "photo";
+        return new File([blob], name, { type: blob.type || "image/jpeg" });
+      } catch {
+        return null;
+      }
+    }),
+  );
+  return loaded.filter((file): file is File => Boolean(file));
+}
+
+function reportNames(ranking: RankedImage[]) {
+  return ranking.map((item) => {
+    const file = item.filename.toLowerCase();
+    return file.split(/[/\\]/).pop() || file;
+  });
+}
+
+function caseCovers(current: EvidenceCase, ranking: RankedImage[]) {
+  if (current.status === "failed" || !ranking.length) return false;
+  const have = new Set(current.files.map((file) => file.filename.toLowerCase()));
+  const hit = reportNames(ranking).filter((name) => have.has(name)).length;
+  return hit >= ranking.length;
+}
+
+async function reusableCase(ranking: RankedImage[], title: string) {
+  try {
+    const open = await listCases();
+    const named = title.trim().toLowerCase();
+    return open.find((item) => caseCovers(item, ranking) && (!named || item.name.toLowerCase() === named || item.source === "upload")) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function ensureReportCase(
+  batch: BatchScan,
+  title: string,
+  onProgress: (done: number, total: number) => void,
+) {
+  const key = batch.scan_id || title || "scan";
+  const ranking = batch.ranking ?? [];
+  const existing = searchCaseFor(key);
+  if (existing) {
+    try {
+      const current = await fetchCase(existing);
+      if (current.status === "indexing" || caseCovers(current, ranking)) return existing;
+    } catch {
+      // The saved case is gone. Reuse another indexed case, or index this report once.
+    }
+  }
+  const reused = await reusableCase(ranking, title);
+  if (reused) {
+    rememberSearchCase(key, reused.id, true);
+    if (reused.status === "indexing") {
+      const total = reused.progress?.total || ranking.length;
+      onProgress(reused.progress?.done ?? 0, total);
+    }
+    return reused.id;
+  }
+  const files = await filesFromReport(ranking);
+  if (!files.length) throw new Error("These photos could not be read for search.");
+  onProgress(0, files.length);
+  const created = await createCase(files, title || "This scan");
+  rememberSearchCase(key, created.id, true);
+  return created.id;
+}
+
+async function searchReport(
+  batch: BatchScan,
+  title: string,
+  query: string,
+  onProgress: (done: number, total: number) => void,
+) {
+  const caseId = await ensureReportCase(batch, title, onProgress);
+  let current = await fetchCase(caseId);
+  const started = Date.now();
+  let sawIndexing = current.status === "indexing";
+  while (current.status === "indexing" && Date.now() - started < 20 * 60 * 1000) {
+    sawIndexing = true;
+    const total = current.progress?.total || batch.ranking?.length || 1;
+    const done = Math.min(current.progress?.done ?? 0, Math.max(total - 1, 0));
+    onProgress(done, total);
+    await new Promise((resolve) => window.setTimeout(resolve, 400));
+    current = await fetchCase(caseId);
+  }
+  if (current.status === "indexing") {
+    throw new Error("Indexing these photos is still running.");
+  }
+  if (current.status === "failed") {
+    throw new Error(current.model_error || "The search model could not load.");
+  }
+  if (sawIndexing) {
+    const total = current.progress?.total || current.indexed_count || 1;
+    onProgress(total, total);
+  }
+  const found = await searchCase(caseId, query);
+  return applyVisualMatches(found);
+}
+
+function applyVisualMatches(found: SearchResponse) {
+  const hits = selectVisualMatches(found.results);
+  const names = hits.map((hit) => hit.filename);
+  const scores = Object.fromEntries(hits.map((hit) => [hit.filename.toLowerCase(), hit.similarity]));
+  const device = found.using_gpu ? "GPU" : found.device === "cpu" ? "CPU" : "the checker";
+  return {
+    names,
+    scores,
+    note: names.length
+      ? `${names.length} visual match${names.length === 1 ? "" : "es"} from this report, ranked on ${device}.`
+      : found.note || "No photos matched that description.",
+  };
+}
+
 function ResultGroup({
   title,
   items,
   open,
   onToggle,
   selectedId,
+  scores,
 }: {
-  title: "Suspicious" | "Normal";
+  title: "Suspicious" | "Normal" | "Matches";
   items: RankedImage[];
   open: boolean;
   onToggle: () => void;
   selectedId: string | undefined;
+  scores: Record<string, number>;
 }) {
   return (
     <section className="scanner-group">
@@ -124,7 +379,11 @@ function ResultGroup({
       </button>
       {open && (
         <div className="scanner-list" role="listbox" aria-label={title}>
-          {items.length === 0 && <p className="empty-files">No {title.toLowerCase()} photos.</p>}
+          {items.length === 0 && (
+            <p className="empty-files">
+              {title === "Matches" ? "No photos matched that description." : `No ${title.toLowerCase()} photos.`}
+            </p>
+          )}
           {items.map((item, index) => (
             <button
               key={item.id}
@@ -138,7 +397,12 @@ function ResultGroup({
               <Thumb entry={item} />
               <span className="scanner-list-copy">
                 <strong>{displayName(item)}</strong>
-                <small>{levelMark(item.level)}</small>
+                <small>
+                  {levelMark(item.level)}
+                  {scoreFor(scores, item.filename) !== undefined
+                    ? ` · ${formatSimilarity(scoreFor(scores, item.filename) ?? 0)}`
+                    : ""}
+                </small>
               </span>
             </button>
           ))}
@@ -521,9 +785,7 @@ function ReportPage() {
         </div>
         {scan.title ? <p className="viewing">{scan.title}</p> : <span />}
         <div className="nav-controls">
-          <Link to="/search" className="nav-link">
-            Image search
-          </Link>
+          <LearnLink />
           <a
             className="theme-toggle"
             href="https://github.com/mfelashry/Metadex"
@@ -578,7 +840,16 @@ function ReportPage() {
         </div>
       </header>
       <main className="report-page-main">
-        {scan.batch ? <ScannerReport /> : null}
+        {scan.batch ? <ScannerReport /> : (
+          <form className="report-search" onSubmit={(event) => event.preventDefault()}>
+            <label htmlFor="case-search-empty">Search these photos</label>
+            <input id="case-search-empty" placeholder="black cat" />
+            <button className="primary-action" type="submit">
+              Search
+            </button>
+            <p className="report-search-note">Search uses the photos already in this report.</p>
+          </form>
+        )}
         {!scan.batch && (
           <div className="report-page-layout">
             <aside className="sidebar">

@@ -261,6 +261,16 @@ def start_case(name: str, items: list[dict], *, source: str, suggested: list[str
     return public_case(_require(case_id))
 
 
+def list_cases() -> list[dict]:
+    """Open cases, without embeddings or filesystem paths."""
+    ensure_store()
+    expire_due()
+    with _lock:
+        copies = [_manifest_copy(case) for case in _cases.values()]
+    copies.sort(key=lambda case: float(case.get("created_at") or 0), reverse=True)
+    return [public_case(case) for case in copies]
+
+
 def get_case(case_id: str) -> dict:
     case = _require(case_id)
     with _lock:
@@ -499,15 +509,23 @@ def public_detail(report: dict, row: dict) -> dict:
 
 def _index(case_id: str, items: list[dict]) -> None:
     model_failed = False
+    batch = vision.embed_batch_size(vision.status().get("device"))
+    pending = 0
     try:
         for offset, item in enumerate(items, start=1):
             if not _alive(case_id):
                 _destroy(case_id)
                 return
-            _set_progress(case_id, offset - 1, "analyzing")
+            _set_progress(case_id, _finished_count(case_id), "analyzing")
             _accept_one(case_id, item)
-            if not model_failed:
+            pending += 1
+            if not model_failed and pending >= batch:
                 model_failed = _embed_latest(case_id)
+                pending = 0
+                batch = max(1, vision.embed_batch_size(vision.status().get("device")))
+                _set_progress(case_id, _finished_count(case_id), "indexing")
+        if pending and not model_failed and _alive(case_id):
+            model_failed = _embed_latest(case_id)
         if not _alive(case_id):
             _destroy(case_id)
             return
@@ -583,29 +601,64 @@ def _accept_one(case_id: str, item: dict) -> None:
     _append_file(case_id, row)
 
 
+def _finished_count(case_id: str) -> int:
+    with _lock:
+        case = _cases.get(case_id)
+        if not case:
+            return 0
+        return sum(1 for row in case["files"] if row.get("status") in {"indexed", "error"})
+
+
 def _embed_latest(case_id: str) -> bool:
-    """Return True when the model itself failed and embedding should stop."""
+    """Return True when the model itself failed and embedding should stop.
+
+    Rows that already have an embedding are left alone.
+    """
     with _lock:
         case = _cases.get(case_id)
         if not case:
             return False
-        pending = [row for row in case["files"] if row.get("status") == "analyzed" and row.get("_rgb") is not None]
+        pending = [
+            row
+            for row in case["files"]
+            if row.get("status") == "analyzed" and row.get("_rgb") is not None and not row.get("embedding")
+        ]
+    images = []
+    rows = []
     for row in pending:
-        rgb = row.pop("_rgb", None)
-        if rgb is None:
+        rgb = row.get("_rgb")
+        if rgb is None or row.get("embedding"):
+            row.pop("_rgb", None)
             continue
-        try:
-            row["embedding"] = vision.embed_image(rgb)
-            row["status"] = "indexed"
-        except vision.EncoderError as exc:
+        images.append(rgb)
+        rows.append(row)
+    if not rows:
+        return False
+    try:
+        vectors = vision.embed_images(images)
+    except vision.EncoderError as exc:
+        for row in rows:
+            row.pop("_rgb", None)
             row["status"] = "analyzed"
             row["embedding"] = None
-            _fail_model(case_id, str(exc))
-            return True
-        except Exception:
+        _fail_model(case_id, str(exc))
+        return True
+    except Exception:
+        for row in rows:
+            row.pop("_rgb", None)
             row["status"] = "error"
             row["error"] = "This image could not be embedded."
             row["embedding"] = None
+        return False
+    for row, vector in zip(rows, vectors):
+        row.pop("_rgb", None)
+        row["embedding"] = vector
+        row["status"] = "indexed"
+    with _lock:
+        case = _cases.get(case_id)
+        if case:
+            case["done"] = sum(1 for row in case["files"] if row.get("status") in {"indexed", "error"})
+            _write_manifest(case)
     return False
 
 
@@ -615,7 +668,7 @@ def _append_file(case_id: str, row: dict) -> None:
         if not case:
             return
         case["files"].append(row)
-        case["done"] = sum(1 for item in case["files"] if item.get("status") != "pending")
+        case["done"] = sum(1 for item in case["files"] if item.get("status") in {"indexed", "error"})
         _write_manifest(case)
 
 

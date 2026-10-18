@@ -1,4 +1,5 @@
-import { Link, useNavigate } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
+import { LearnLink } from "./LearnLink";
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import {
   motion,
@@ -22,10 +23,11 @@ import {
   X,
 } from "lucide-react";
 import { FolderScan, type DeckCard } from "./FolderScan";
+import { createCase } from "@/lib/evidence-search";
 import { scanImagesWithProgress } from "@/lib/live-batch";
 import { analyzeImage, formatBytes, sniffImage, type ImageAnalysis } from "./analyzeImage";
 import { publishDesk } from "@/lib/report-desk";
-import { publishScan, readScan, selectScan, subscribeScan } from "@/lib/stillframe-store";
+import { publishScan, readScan, rememberSearchCase, selectScan, subscribeScan } from "@/lib/stillframe-store";
 import { folderLabel, runDemoBatch, scanFolderPath, previewSrc } from "@/lib/stillframe";
 import {
   cleanCase,
@@ -660,6 +662,7 @@ export function ScrollStory() {
     setScannerBusy(true);
     setUploadError(null);
     beginLoad(title, images.length);
+    const indexed = createCase(images.slice(0, 200), title).catch(() => null);
     try {
       const batch = await scanImagesWithProgress(images, previews, (done, total) =>
         setLoadCount({ done, total }),
@@ -681,6 +684,9 @@ export function ScrollStory() {
       await finishLoad(images.length);
       setDeck(null);
       openScannerReport(batch, title);
+      void indexed.then((created) => {
+        if (created?.id) rememberSearchCase(batch.scan_id || title, created.id);
+      });
     } catch (error) {
       setDeck(null);
       setUploadError(error instanceof Error ? error.message : "The images could not be read.");
@@ -894,9 +900,7 @@ export function ScrollStory() {
           METADEX
         </a>
         <div className="nav-controls">
-          <Link to="/search" className="nav-link">
-            Image search
-          </Link>
+          <LearnLink />
           <a
             className="theme-toggle"
             href="https://github.com/mfelashry/Metadex"
@@ -1072,14 +1076,6 @@ export function ScrollStory() {
                     disabled={isProcessing}
                   >
                     Choose a folder
-                  </button>
-                  <button
-                    className="secondary-action"
-                    type="button"
-                    onClick={() => void navigate({ to: "/search" })}
-                    disabled={isProcessing}
-                  >
-                    Search a collection
                   </button>
                 </div>
                 {uploadError && (

@@ -4,7 +4,7 @@ export type SearchState = "not_loaded" | "loading" | "ready" | "failed" | string
 
 export type SearchStatus = {
   state: SearchState;
-  device: "cpu" | "cuda" | null;
+  device: "cpu" | "cuda" | "mps" | null;
   using_gpu: boolean;
   cuda_available: boolean;
   model: string;
@@ -129,6 +129,7 @@ export function modelStatusLabel(status: SearchStatus | null, offline = false): 
   if (status.state === "loading") return "Loading the search model.";
   if (status.state === "failed") return status.error || "The search model could not be loaded.";
   if (status.using_gpu && status.device === "cuda") return "Search is running on the GPU (CUDA).";
+  if (status.using_gpu && status.device === "mps") return "Search is running on the GPU (Apple MPS).";
   if (status.device === "cpu") {
     return status.cuda_available
       ? "Search is running on the CPU. CUDA is visible, but this process is not using the GPU."
@@ -140,6 +141,16 @@ export function modelStatusLabel(status: SearchStatus | null, offline = false): 
 export function formatSimilarity(value: number): string {
   if (!Number.isFinite(value)) return "—";
   return value.toFixed(2);
+}
+
+/** Photos that sit with the best visual match. The case API ranks every image; the report keeps this cluster. */
+export function selectVisualMatches<T extends { similarity: number }>(results: T[]): T[] {
+  const ranked = [...results].sort((left, right) => right.similarity - left.similarity);
+  if (!ranked.length) return [];
+  const best = ranked[0]!.similarity;
+  const floor = Math.max(0.2, best - 0.04);
+  const kept = ranked.filter((hit) => hit.similarity >= floor && hit.similarity > 0);
+  return kept.length ? kept : ranked.slice(0, 1);
 }
 
 export function previewUrl(path: string | null | undefined): string | null {
@@ -173,6 +184,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export function fetchSearchStatus() {
   return request<SearchStatus>("/api/search/status");
+}
+
+export function listCases() {
+  return request<EvidenceCase[]>("/api/cases");
 }
 
 export function createCase(files: File[], name: string) {

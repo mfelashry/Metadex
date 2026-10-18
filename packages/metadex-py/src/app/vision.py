@@ -26,11 +26,11 @@ class EncoderError(Exception):
     """The search model cannot run. The message is safe to show to an examiner."""
 
 
-def resolve_device(requested: str | None, cuda_available: bool) -> str:
-    """Pick cpu or cuda. Never report cuda unless that device will actually run."""
+def resolve_device(requested: str | None, cuda_available: bool, mps_available: bool = False) -> str:
+    """Pick cpu, cuda, or mps. Never report a GPU the process cannot run."""
     choice = (requested or "auto").strip().lower()
-    if choice not in {"auto", "cpu", "cuda"}:
-        raise EncoderError("METADEX_DEVICE must be auto, cpu, or cuda.")
+    if choice not in {"auto", "cpu", "cuda", "mps"}:
+        raise EncoderError("METADEX_DEVICE must be auto, cpu, cuda, or mps.")
     if choice == "cpu":
         return "cpu"
     if choice == "cuda":
@@ -41,7 +41,32 @@ def resolve_device(requested: str | None, cuda_available: bool) -> str:
                 "To run without a GPU, set METADEX_DEVICE=cpu. The status endpoint will keep saying CPU."
             )
         return "cuda"
-    return "cuda" if cuda_available else "cpu"
+    if choice == "mps":
+        if not mps_available:
+            raise EncoderError(
+                "GPU setup failed: METADEX_DEVICE=mps but PyTorch cannot see an Apple GPU. "
+                "To run without it, set METADEX_DEVICE=cpu."
+            )
+        return "mps"
+    if cuda_available:
+        return "cuda"
+    if mps_available:
+        return "mps"
+    return "cpu"
+
+
+def embed_batch_size(device: str | None = None) -> int:
+    """How many images to encode in one OpenCLIP forward pass."""
+    raw = os.environ.get("METADEX_CLIP_BATCH", "").strip()
+    if raw:
+        try:
+            return max(1, min(64, int(raw)))
+        except ValueError:
+            pass
+    chosen = (device or "cpu").strip().lower()
+    if chosen in {"cuda", "mps"}:
+        return 32
+    return 16
 
 
 def model_name() -> str:
@@ -63,7 +88,7 @@ def status() -> dict:
             state = "ready"
             error = None
             cuda = bool(getattr(_override, "cuda_available", device == "cuda"))
-        using_gpu = state == "ready" and device == "cuda"
+        using_gpu = state == "ready" and device in {"cuda", "mps"}
         if _override is None:
             shown_model = model_name()
             shown_pretrained = pretrained_name()
@@ -154,7 +179,12 @@ def _load_runtime() -> None:
     except Exception as exc:
         raise EncoderError(f"GPU setup failed while checking CUDA: {exc}.") from exc
     try:
-        device = resolve_device(os.environ.get("METADEX_DEVICE", "auto"), cuda_available)
+        mps_backend = getattr(torch.backends, "mps", None)
+        mps_available = bool(mps_backend is not None and mps_backend.is_available())
+    except Exception:
+        mps_available = False
+    try:
+        device = resolve_device(os.environ.get("METADEX_DEVICE", "auto"), cuda_available, mps_available)
     except EncoderError:
         with _lock:
             _cuda_available = cuda_available
@@ -197,11 +227,16 @@ class _OpenClipEncoder:
         self._torch = torch_module
 
     def encode_image(self, image) -> list[float]:
-        tensor = self.preprocess(image).unsqueeze(0).to(self.device)
+        return self.encode_images([image])[0]
+
+    def encode_images(self, images) -> list[list[float]]:
+        if not images:
+            return []
+        tensors = self._torch.stack([self.preprocess(image) for image in images]).to(self.device)
         with self._torch.no_grad():
-            features = self.model.encode_image(tensor)
+            features = self.model.encode_image(tensors)
             features = features / features.norm(dim=-1, keepdim=True)
-        return features[0].detach().float().cpu().tolist()
+        return features.detach().float().cpu().tolist()
 
     def encode_text(self, text: str) -> list[float]:
         tokens = self.tokenizer([text]).to(self.device)
@@ -250,16 +285,33 @@ def _as_vector(raw) -> list[float]:
 
 
 def embed_image(image) -> list[float]:
+    return embed_images([image])[0]
+
+
+def embed_images(images) -> list[list[float]]:
+    """Encode many images per forward pass. An already-indexed case never calls this."""
+    if not images:
+        return []
     encoder = _require_encoder()
-    rgb = image.convert("RGB")
+    rgb = [image.convert("RGB") for image in images]
+    batch = embed_batch_size(getattr(encoder, "device", None))
+    vectors: list[list[float]] = []
     try:
         with _infer_lock:
-            raw = encoder.encode_image(rgb)
+            for start in range(0, len(rgb), batch):
+                chunk = rgb[start : start + batch]
+                if hasattr(encoder, "encode_images"):
+                    raws = encoder.encode_images(chunk)
+                else:
+                    raws = [encoder.encode_image(image) for image in chunk]
+                if not isinstance(raws, (list, tuple)) or len(raws) != len(chunk):
+                    raise EncoderError("The image encoder returned the wrong number of embeddings.")
+                vectors.extend(_as_vector(raw) for raw in raws)
     except EncoderError:
         raise
     except Exception as exc:
         raise EncoderError(f"Image encoding failed: {exc}.") from exc
-    return _as_vector(raw)
+    return vectors
 
 
 def embed_text(text: str) -> list[float]:

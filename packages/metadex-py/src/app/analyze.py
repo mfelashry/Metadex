@@ -26,7 +26,8 @@ EXTENSIONS = {
 
 MAX_BYTES = 10 * 1024 * 1024
 MAX_PIXELS = 25_000_000
-MAX_UPLOAD_FILES = 200
+# Matches the folder-scan cap so a report like the 350-photo set can be indexed for search.
+MAX_UPLOAD_FILES = 500
 Image.MAX_IMAGE_PIXELS = MAX_PIXELS
 
 LIMITATIONS = (

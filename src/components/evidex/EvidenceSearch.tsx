@@ -202,9 +202,11 @@ export function EvidenceSearch() {
             ? evidence.model_error
             : evidence?.status === "ready" && evidence.using_gpu && evidence.device === "cuda"
               ? "Search is running on the GPU (CUDA)."
-              : evidence?.status === "ready" && evidence.device === "cpu"
-                ? "Search is running on the CPU. This is not GPU inference."
-                : modelStatusLabel(model, offline)}
+              : evidence?.status === "ready" && evidence.device === "mps"
+                ? "Search is running on the GPU (Apple MPS)."
+                : evidence?.status === "ready" && evidence.device === "cpu"
+                  ? "Search is running on the CPU. This is not GPU inference."
+                  : modelStatusLabel(model, offline)}
         </p>
         <div className="dash-actions">
           <button className="primary-action" type="button" onClick={() => fileRef.current?.click()} disabled={busy || indexing}>
@@ -391,7 +393,9 @@ export function EvidenceSearch() {
               <p>{results.score_meaning}</p>
               <p className="es-disclaimer">{results.disclaimer}</p>
               <p className="es-disclaimer">{results.indicator_disclaimer}</p>
-              {results.device === "cpu" || !results.using_gpu ? (
+              {results.device === "mps" ? (
+                <p className="es-device">This search ran on the GPU (Apple MPS).</p>
+              ) : results.device === "cpu" || !results.using_gpu ? (
                 <p className="es-device">This search ran on the CPU. It was not GPU inference.</p>
               ) : (
                 <p className="es-device">This search ran on the GPU (CUDA).</p>

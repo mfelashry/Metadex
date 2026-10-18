@@ -24,7 +24,34 @@ type ScanState = {
   history: HistoryImage[];
   title: string;
   reports: SavedReport[];
+  searchCases: Record<string, string>;
 };
+
+const SEARCH_CASES_KEY = "metadex.searchCases";
+
+function storedSearchCases(): Record<string, string> {
+  try {
+    if (typeof sessionStorage === "undefined") return {};
+    const raw = sessionStorage.getItem(SEARCH_CASES_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    if (!parsed || typeof parsed !== "object") return {};
+    return Object.fromEntries(
+      Object.entries(parsed).filter((entry): entry is [string, string] => typeof entry[1] === "string" && Boolean(entry[0])),
+    );
+  } catch {
+    return {};
+  }
+}
+
+function rememberStoredCases(cases: Record<string, string>) {
+  try {
+    if (typeof sessionStorage === "undefined") return;
+    sessionStorage.setItem(SEARCH_CASES_KEY, JSON.stringify(cases));
+  } catch {
+    // The in-memory map still avoids a second upload in this tab.
+  }
+}
 
 let state: ScanState = {
   batch: null,
@@ -33,6 +60,7 @@ let state: ScanState = {
   history: [],
   title: "",
   reports: [],
+  searchCases: storedSearchCases(),
 };
 const listeners = new Set<() => void>();
 
@@ -71,6 +99,7 @@ export function publishScan(batch: BatchScan, title = "This scan") {
     title,
     history: [...added, ...state.history].slice(0, 24),
     reports: [saved, ...state.reports.filter((item) => item.id !== saved.id)].slice(0, 12),
+    searchCases: state.searchCases,
   };
   emit();
 }
@@ -82,6 +111,20 @@ export function openSaved(id: string) {
   const first = ranking.find((item) => item.level && item.level !== "none") ?? ranking[0];
   state = { ...state, batch: saved.batch, selectedId: first?.id ?? null, title: saved.title };
   emit();
+}
+
+export function rememberSearchCase(scanId: string, caseId: string, force = false) {
+  if (!scanId || !caseId) return;
+  if (!force && state.searchCases[scanId]) return;
+  const searchCases = { ...state.searchCases, [scanId]: caseId };
+  state = { ...state, searchCases };
+  rememberStoredCases(searchCases);
+  emit();
+}
+
+export function searchCaseFor(scanId: string | undefined) {
+  if (!scanId) return null;
+  return state.searchCases[scanId] ?? null;
 }
 
 export function selectScan(id: string) {

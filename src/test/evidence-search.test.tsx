@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { EvidenceSearch } from "@/components/evidex/EvidenceSearch";
-import { formatSimilarity, modelStatusLabel, type EvidenceCase, type SearchStatus } from "@/lib/evidence-search";
+import { formatSimilarity, modelStatusLabel, selectVisualMatches, type EvidenceCase, type SearchStatus } from "@/lib/evidence-search";
 
 const cpuStatus: SearchStatus = {
   state: "ready",
@@ -64,6 +64,16 @@ describe("model status copy", () => {
       /weights could not be loaded/,
     );
     expect(formatSimilarity(0.844)).toBe("0.84");
+  });
+
+  it("keeps the top visual cluster and drops the long tail", () => {
+    const hits = selectVisualMatches([
+      { filename: "orange-a.jpg", similarity: 0.22 },
+      { filename: "black-a.jpg", similarity: 0.31 },
+      { filename: "black-b.jpg", similarity: 0.29 },
+      { filename: "orange-b.jpg", similarity: 0.21 },
+    ]);
+    expect(hits.map((hit) => hit.filename)).toEqual(["black-a.jpg", "black-b.jpg"]);
   });
 });
 
