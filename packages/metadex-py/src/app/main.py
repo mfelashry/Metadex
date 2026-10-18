@@ -1,3 +1,5 @@
+import os
+from contextlib import asynccontextmanager
 from typing import Any, Optional
 
 from fastapi import FastAPI, File, Form, HTTPException, Query, Response, UploadFile
@@ -7,6 +9,7 @@ from starlette.concurrency import run_in_threadpool
 
 from app.analyze import (
     MAX_BYTES,
+    MAX_UPLOAD_FILES,
     AnalysisError,
     analyze_bytes,
     decode_image_b64,
@@ -15,30 +18,64 @@ from app.analyze import (
     parse_sensors,
 )
 from app.batch import analyze_many, preview, scan_folder
+from app import cases
 from app.demo import build_demo_image, demo_case
 from app.evidence import DEMO_ACTIVITY, build_evidence
 from app.gemini import GeminiError, explain
+from app import search_demo
+from app import vision
 
-MAX_UPLOAD_FILES = 200
+
+def _cors_origins() -> list[str]:
+    raw = os.environ.get("METADEX_CORS_ORIGINS", "")
+    return [origin.strip() for origin in raw.split(",") if origin.strip()]
+
+
+def _folder_scan_enabled() -> bool:
+    """Server-path scans stay off unless this process was started for local use."""
+    return os.environ.get("STILLFRAME_ALLOW_FOLDER_SCAN", "0") == "1"
+
+
+@asynccontextmanager
+async def _lifespan(_app: FastAPI):
+    cases.start_sweeper()
+    if os.environ.get("METADEX_PRELOAD_MODEL", "0") == "1":
+        try:
+            vision.load()
+        except vision.EncoderError:
+            pass
+    yield
+    cases.stop_sweeper()
+
 
 app = FastAPI(
     title="Stillframe",
-    version="2.0.0",
+    version="2.1.0",
+    lifespan=_lifespan,
     description=(
         "Local image-forensics API. It looks for hidden-data indicators, ranks a folder of images by suspicion, "
         "correlates a submitted host timeline, and scores submitted device readings. Those conclusions stay separate. "
-        "Nothing recovered is executed or written to disk, and evidence files are opened read only."
+        "An evidence case can also be searched by visual similarity with a local OpenCLIP model. "
+        "Nothing recovered is executed, and evidence files are opened read only."
     ),
 )
 
-# Only local dashboard pages may call this service from a browser. In particular,
-# other websites must not be able to spend the configured Gemini key.
-app.add_middleware(
-    CORSMiddleware,
-    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?",
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+_origins = _cors_origins()
+if _origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=_origins,
+        allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+        allow_headers=["*"],
+    )
+else:
+    # Local dashboard pages only, until METADEX_CORS_ORIGINS names the real frontend.
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?",
+        allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+        allow_headers=["*"],
+    )
 
 
 class AnalyzeJson(BaseModel):
@@ -77,7 +114,19 @@ def _slim(result: dict, include_reports: bool) -> dict:
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "service": "stillframe", "version": app.version}
+    search = vision.status()
+    return {
+        "status": "degraded" if search["state"] == "failed" else "ok",
+        "service": "stillframe",
+        "version": app.version,
+        "search": search,
+    }
+
+
+@app.get("/api/search/status")
+def search_status():
+    """Model readiness and the device that will actually run inference."""
+    return vision.status()
 
 
 @app.post("/api/explain")
@@ -141,7 +190,17 @@ def analyze_json(body: AnalyzeJson):
 
 @app.post("/api/scan-folder")
 def scan_folder_endpoint(body: ScanFolder, include_reports: bool = Query(True)):
-    """Scan every PNG, JPEG, and BMP in a folder on this computer and rank them. Files are opened read only."""
+    """Scan a folder on this computer. Disabled unless the server is the local workbench."""
+    if not _folder_scan_enabled():
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "message": (
+                    "Folder scanning is disabled on this server. Upload the images you want checked. "
+                    "This endpoint is only available when Metadex is running on your own computer."
+                )
+            },
+        )
     try:
         events = object_list(body.activity_events, "activity_events")
         sensors = object_list(body.sensor_samples, "sensor_samples")
@@ -203,3 +262,110 @@ def demo_answers():
             for item in build_evidence()
         ]
     }
+
+
+class SearchQuery(BaseModel):
+    query: str = Field(..., min_length=1, max_length=400)
+
+
+def _case_error(exc: cases.CaseError) -> HTTPException:
+    return HTTPException(status_code=exc.status_code, detail={"message": exc.message})
+
+
+async def _collect_uploads(images: list[UploadFile]) -> tuple[list[dict], list[dict]]:
+    """Read uploads up to the existing file and byte limits. Extra files become per-file errors."""
+    kept: list[dict] = []
+    rejected: list[dict] = []
+    total = 0
+    budget = cases.max_total_bytes()
+    for index, upload in enumerate(images):
+        filename = cases.display_filename(upload.filename, index)
+        if len(kept) >= MAX_UPLOAD_FILES:
+            rejected.append(
+                {
+                    "filename": filename,
+                    "reason": f"This case accepts at most {MAX_UPLOAD_FILES} images.",
+                }
+            )
+            await upload.close()
+            continue
+        data = await upload.read(MAX_BYTES + 1)
+        await upload.close()
+        if total + len(data) > budget:
+            rejected.append({"filename": filename, "reason": "This file would exceed the case size limit."})
+            continue
+        total += len(data)
+        kept.append({"filename": upload.filename or filename, "data": data, "index": index})
+    return kept, rejected
+
+
+@app.post("/api/cases")
+async def create_case(images: list[UploadFile] = File(...), name: str = Form("")):
+    """Index uploaded images and run the same forensic analyzer as a manual scan."""
+    if not images:
+        raise HTTPException(status_code=400, detail={"message": "Choose at least one image."})
+    kept, rejected = await _collect_uploads(images)
+    try:
+        return cases.start_case(name, kept, source="upload", rejected=rejected)
+    except cases.CaseError as exc:
+        raise _case_error(exc) from exc
+
+
+@app.post("/api/cases/demo")
+def create_demo_case():
+    """Index the built-in demo images. Nothing is downloaded."""
+    try:
+        return cases.start_case(
+            "Technica demo case",
+            search_demo.build_items(),
+            source="demo",
+            suggested=search_demo.SUGGESTED_QUERIES,
+        )
+    except cases.CaseError as exc:
+        raise _case_error(exc) from exc
+
+
+@app.get("/api/cases/{case_id}")
+def read_case(case_id: str):
+    try:
+        return cases.get_case(case_id)
+    except cases.CaseError as exc:
+        raise _case_error(exc) from exc
+
+
+@app.delete("/api/cases/{case_id}", status_code=204)
+def remove_case(case_id: str):
+    try:
+        cases.delete_case(case_id)
+    except cases.CaseError as exc:
+        raise _case_error(exc) from exc
+    return Response(status_code=204)
+
+
+@app.post("/api/cases/{case_id}/search")
+def search_case(case_id: str, body: SearchQuery):
+    try:
+        return cases.search(case_id, body.query)
+    except cases.CaseError as exc:
+        raise _case_error(exc) from exc
+
+
+@app.get("/api/cases/{case_id}/items/{item_id}")
+def read_case_item(case_id: str, item_id: str):
+    try:
+        return cases.item_detail(case_id, item_id)
+    except cases.CaseError as exc:
+        raise _case_error(exc) from exc
+
+
+@app.get("/api/cases/{case_id}/items/{item_id}/preview")
+def read_case_preview(case_id: str, item_id: str):
+    try:
+        data = cases.preview_bytes(case_id, item_id)
+    except cases.CaseError as exc:
+        raise _case_error(exc) from exc
+    return Response(
+        content=data,
+        media_type="image/jpeg",
+        headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"},
+    )

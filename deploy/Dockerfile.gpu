@@ -1,0 +1,35 @@
+# GPU image for the forensic API. Build from the repository root:
+#   docker build -f deploy/Dockerfile.gpu -t metadex-search .
+#
+# The host needs an NVIDIA driver and the NVIDIA container toolkit.
+# This file does not contain credentials.
+
+FROM nvidia/cuda:12.4.1-runtime-ubuntu22.04
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    METADEX_PRELOAD_MODEL=1 \
+    METADEX_DEVICE=auto \
+    STILLFRAME_ALLOW_FOLDER_SCAN=0 \
+    METADEX_CLIP_MODEL=ViT-B-32 \
+    METADEX_CLIP_PRETRAINED=openai
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends python3 python3-pip python3-venv ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY packages/metadex-py /app/packages/metadex-py
+
+# CUDA PyTorch first. only-if-needed keeps that wheel when OpenCLIP is installed.
+RUN python3 -m pip install --upgrade pip \
+    && python3 -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124 \
+    && python3 -m pip install --upgrade-strategy only-if-needed -e "/app/packages/metadex-py[search]"
+
+EXPOSE 8741
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=180s --retries=5 \
+    CMD python3 -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8741/health')"
+
+CMD ["python3", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8741"]

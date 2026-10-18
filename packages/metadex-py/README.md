@@ -46,6 +46,25 @@ Files are opened read only and hashed again after each check, so a scan never ch
 ## Tests
 
 ```bash
-python3 -m pip install pytest httpx
+python3 -m pip install -e ".[test]"
 python3 -m pytest -q tests
 ```
+
+## Image search
+
+`metadex serve` still binds to `127.0.0.1:8741` and, because it is local, allows `/api/scan-folder`. A public host must not set `STILLFRAME_ALLOW_FOLDER_SCAN`.
+
+The search API keeps embeddings for the life of a case and deletes them with the case:
+
+| Request | What it does |
+| --- | --- |
+| `GET /health` and `GET /api/search/status` | Model state and the real device (`cpu` or `cuda`) |
+| `POST /api/cases` | Upload images, validate them with the same limits as a scan, index embeddings |
+| `POST /api/cases/demo` | Index the built-in demo images. Nothing is downloaded |
+| `GET /api/cases/{id}` | Indexing progress, per-file errors, forensic summaries |
+| `POST /api/cases/{id}/search` | Rank the stored embeddings by cosine similarity to the query |
+| `GET /api/cases/{id}/items/{item}` | Forensic detail for one image |
+| `GET /api/cases/{id}/items/{item}/preview` | A private preview. Not a public file URL |
+| `DELETE /api/cases/{id}` | Delete the images, previews, and embeddings |
+
+Install the model extra on the machine that serves search. See `docs/vultr-gpu.md` for the GPU host. Image bytes, filenames, and recovered text stay on that machine. They are not sent to Gemini.

@@ -63,8 +63,12 @@ def _main(argv: list[str] | None = None) -> int:
     if paths and paths[0] == "serve" and not Path("serve").exists():
         if len(paths) > 1 or args.all:
             parser.error("serve does not take a path")
+        import os
         import uvicorn
 
+        # This command binds to loopback only, so a folder path stays on this computer.
+        # A public host, including a Vultr GPU, must leave STILLFRAME_ALLOW_FOLDER_SCAN unset.
+        os.environ.setdefault("STILLFRAME_ALLOW_FOLDER_SCAN", "1")
         uvicorn.run("app.main:app", host="127.0.0.1", port=8741)
         return 0
     if paths and paths[0] == "scan" and not Path("scan").exists():

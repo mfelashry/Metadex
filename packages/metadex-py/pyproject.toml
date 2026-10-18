@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "metadex"
 version = "0.8.1"
-description = "Scan a photo, a folder, or the whole computer for hidden data from the terminal."
+description = "Scan a photo, a folder, or the whole computer for hidden data from the terminal, and search an uploaded evidence case by visual similarity."
 readme = "README.md"
 requires-python = ">=3.9"
 authors = [{ name = "Metadex" }]
@@ -17,6 +17,10 @@ dependencies = [
   "piexif>=1.1,<2",
   "rich>=13,<15",
 ]
+
+[project.optional-dependencies]
+search = ["open-clip-torch>=2.26,<3"]
+test = ["pytest>=8", "httpx>=0.27"]
 
 [project.scripts]
 metadex = "metadex.cli:main"
