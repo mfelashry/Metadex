@@ -1,4 +1,4 @@
-import { useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import {
   motion,
@@ -894,6 +894,9 @@ export function ScrollStory() {
           METADEX
         </a>
         <div className="nav-controls">
+          <Link to="/search" className="nav-link">
+            Image search
+          </Link>
           <a
             className="theme-toggle"
             href="https://github.com/mfelashry/Metadex"
@@ -1069,6 +1072,14 @@ export function ScrollStory() {
                     disabled={isProcessing}
                   >
                     Choose a folder
+                  </button>
+                  <button
+                    className="secondary-action"
+                    type="button"
+                    onClick={() => void navigate({ to: "/search" })}
+                    disabled={isProcessing}
+                  >
+                    Search a collection
                   </button>
                 </div>
                 {uploadError && (

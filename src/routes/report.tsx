@@ -521,6 +521,9 @@ function ReportPage() {
         </div>
         {scan.title ? <p className="viewing">{scan.title}</p> : <span />}
         <div className="nav-controls">
+          <Link to="/search" className="nav-link">
+            Image search
+          </Link>
           <a
             className="theme-toggle"
             href="https://github.com/mfelashry/Metadex"

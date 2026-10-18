@@ -1,0 +1,14 @@
+.git
+node_modules
+dist
+.output
+.venv
+**/.venv
+**/__pycache__
+**/*.pyc
+.env
+.env.*
+packages/metadex-py/build
+cat-photos-350
+*.md
+!packages/metadex-py/README.md

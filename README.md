@@ -19,6 +19,7 @@ A flag is a reason to look. It is not a verdict.
 - Read EXIF and comments
 - Decode base64 notes
 - Ask about the case
+- Search a case by describing what is in the picture
 
 ## How it works
 
@@ -39,7 +40,19 @@ Terminal:
 python3 -m pip install -e packages/metadex-py
 metadex ./photo.jpg
 metadex ~/Pictures
+metadex serve
 ```
+
+Open **Image search** in the site header. The page talks to the forensic API at `VITE_STILLFRAME_API` (default `http://127.0.0.1:8741`). Copy `.env.example` to `.env` when that URL is not local.
+
+Image search ranks a case with a local OpenCLIP model. A similarity score is not a probability and not a danger score. A forensic indicator is a reason to look, not proof of an attack. The built-in demo case is drawn on the server, so the presentation does not download photos. Install the search extra and, on a GPU machine, the CUDA build of PyTorch before expecting real embeddings. Tests use a stand-in encoder and do not download weights.
+
+```sh
+python3 -m pip install -e "packages/metadex-py[search,test]"
+python3 -m pytest -q packages/metadex-py/tests
+```
+
+For a Vultr GPU host, follow [docs/vultr-gpu.md](docs/vultr-gpu.md). Folder scanning stays off on that host. Upload is the only way images get in.
 
 ## Stack
 

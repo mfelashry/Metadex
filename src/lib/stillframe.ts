@@ -1,4 +1,5 @@
-export const STILLFRAME_API = "http://127.0.0.1:8741";
+const configured = (import.meta.env as { VITE_STILLFRAME_API?: string }).VITE_STILLFRAME_API;
+export const STILLFRAME_API = configured?.trim().replace(/\/$/, "") || "http://127.0.0.1:8741";
 
 export type Level = "high" | "suspicious" | "low" | "none" | string;
 
