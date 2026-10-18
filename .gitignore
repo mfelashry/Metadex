@@ -25,9 +25,6 @@ __pycache__/
 .env.*
 !.env.example
 
-# Large demo photos stay on disk only
-cat-photos-350/
-
 # Wrangler / Cloudflare
 .wrangler/
 .dev.vars
