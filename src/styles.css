@@ -3896,12 +3896,6 @@ html[data-nav="back"]::view-transition-new(root) {
 @media (max-width: 750px) { .scanner-split { grid-template-columns: 1fr; } .scanner-groups { position: static; max-height: none; } .scanner-list { max-height: 350px; } }
 @media (prefers-reduced-motion: reduce) { .scanner-report, .scanner-list button { animation: none; } .scanner-group-toggle svg { transition: none; } }
 .stage-docs { overflow: auto; }
-.stage-docs .download-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; width: min(640px, 100%); margin: 15px 0 2px; }
-.download-options a { display: flex; flex-direction: column; gap: 4px; min-height: 76px; padding: 13px; border: 1px solid var(--line); border-radius: 13px; color: var(--fg); font-size: 13px; font-weight: 600; line-height: 1.25; text-decoration: none; }
-.download-mark { width: 36px; height: 36px; margin-bottom: 4px; }
 .terminal-examples { display: grid; gap: 8px; width: min(760px, 100%); margin-top: 14px; text-align: left; }
 .terminal-examples > p { margin: 8px 0 0; color: var(--muted); font-size: 12px; font-weight: 600; }
-.download-options a:hover { border-color: var(--fg); background: var(--soft); }
-.download-options span { color: var(--muted); font-size: 10px; font-weight: 400; }
 .stage-docs code { color: var(--fg); font-size: .92em; }
-@media (max-width: 560px) { .stage-docs .download-options { grid-template-columns: 1fr; } .download-options a { min-height: 0; } }
